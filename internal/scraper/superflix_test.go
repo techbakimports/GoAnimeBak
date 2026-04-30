@@ -1034,8 +1034,9 @@ func TestGetVideoAPI_NoStreamURL(t *testing.T) {
 func TestGetVideoAPI_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
+	// Non-JSON, non-HTML body still surfaces a JSON decode error.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, `<html>Error</html>`)
+		fmt.Fprint(w, `{not json`)
 	}))
 	defer srv.Close()
 
@@ -1954,4 +1955,144 @@ func TestRegexPatterns(t *testing.T) {
 		assert.Equal(t, "Portuguese", match[1])
 		assert.Equal(t, "https://subs.example.com/pt.vtt", match[2])
 	})
+}
+
+// =============================================================================
+// Regression tests (added 2026-04-30)
+//
+// Context: SuperFlix moved from `superflixapi.rest` to `superflixapi.online`
+// using a server-side 301 redirect. Go's http.Client follows the redirect but
+// downgrades the POST to a GET (dropping the body), so /player/bootstrap
+// returned an HTML 404 page. The JSON decoder then surfaced the cryptic
+// `invalid character '<' looking for beginning of value`, breaking playback.
+// These tests pin (a) the canonical base URL and (b) that an HTML/non-2xx
+// response from the player API produces a clear, actionable error rather
+// than the cryptic JSON decode error.
+// =============================================================================
+
+func TestSuperFlixBase_PointsToOnlineHost_2026_04_30(t *testing.T) {
+	t.Parallel()
+	// Pinning the canonical host. If this needs to change in the future,
+	// also update internal/api/providers/metadata/metadata.go.
+	assert.Equal(t, "https://superflixapi.online", SuperFlixBase)
+}
+
+func TestBootstrap_HTMLResponseSurfacesActionableError_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `<!DOCTYPE html><html><head><title>Not Found</title></head><body>404</body></html>`)
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	tokens := &SuperFlixTokens{CSRF: "a", PageToken: "b", ContentID: "1", ContentType: "filme"}
+	_, err := client.Bootstrap(context.Background(), tokens)
+
+	require.Error(t, err)
+	// Must NOT leak the cryptic JSON decode error.
+	assert.NotContains(t, err.Error(), "invalid character '<'")
+	// Must surface the real cause: HTML body with status code in context.
+	assert.Contains(t, err.Error(), "bootstrap")
+	assert.Contains(t, err.Error(), "HTML")
+	assert.Contains(t, err.Error(), "404")
+}
+
+func TestGetSourceURL_HTMLResponseSurfacesActionableError_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `<html><body>blocked</body></html>`)
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	tokens := &SuperFlixTokens{CSRF: "a", PageToken: "b"}
+	_, err := client.GetSourceURL(context.Background(), "vid", tokens)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "invalid character '<'")
+	assert.Contains(t, err.Error(), "source")
+	assert.Contains(t, err.Error(), "HTML")
+	assert.Contains(t, err.Error(), "403")
+}
+
+func TestGetVideoAPI_HTMLResponseSurfacesActionableError_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `<html><body>captcha</body></html>`)
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	_, _, err := client.GetVideoAPI(context.Background(), srv.URL, "hash", srv.URL+"/")
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "invalid character '<'")
+	assert.Contains(t, err.Error(), "video API")
+	assert.Contains(t, err.Error(), "HTML")
+}
+
+// Some upstream players (firevideoplayer.com behind llanfairpwllgwyngy.com)
+// serve real JSON with `Content-Type: text/html; charset=utf-8`. Trusting the
+// header alone would reject these valid responses. The body sniff is the
+// source of truth.
+func TestGetVideoAPI_AcceptsJSONBodyWithHTMLContentType_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `{"hls":true,"securedLink":"https://example.com/master.m3u8","videoSource":"https://example.com/master.txt","videoImage":"https://example.com/thumb.jpg"}`)
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	streamURL, thumb, err := client.GetVideoAPI(context.Background(), srv.URL, "hash", srv.URL+"/")
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/master.m3u8", streamURL)
+	assert.Equal(t, "https://example.com/thumb.jpg", thumb)
+}
+
+func TestBootstrap_AcceptsJSONBodyWithHTMLContentType_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `{"data":{"options":[{"ID":"sv1","name":"Server 1"}]}}`)
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	tokens := &SuperFlixTokens{CSRF: "a", PageToken: "b", ContentID: "1", ContentType: "filme"}
+	servers, err := client.Bootstrap(context.Background(), tokens)
+
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	assert.Equal(t, "Server 1", servers[0].Name)
+}
+
+func TestEnsureJSONResponse_BlankBodyWithBadStatus_2026_04_30(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		// Empty body — JSON decode would also fail with EOF; ensure the
+		// status-code path produces a useful error first.
+	}))
+	defer srv.Close()
+
+	client := newTestSuperFlixClient(srv.URL)
+	tokens := &SuperFlixTokens{CSRF: "a", PageToken: "b", ContentID: "1", ContentType: "filme"}
+	_, err := client.Bootstrap(context.Background(), tokens)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
 }

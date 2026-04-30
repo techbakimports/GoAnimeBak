@@ -20,7 +20,11 @@ import (
 )
 
 const (
-	SuperFlixBase      = "https://superflixapi.rest"
+	// SuperFlixBase is the canonical SuperFlix host. The legacy
+	// `superflixapi.rest` host now 301-redirects here; Go's http.Client follows
+	// the redirect but downgrades the POST to a GET (dropping the body), which
+	// makes /player/bootstrap return HTML 404 and break JSON decoding.
+	SuperFlixBase      = "https://superflixapi.online"
 	SuperFlixUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
@@ -431,6 +435,10 @@ func (c *SuperFlixClient) Bootstrap(ctx context.Context, tokens *SuperFlixTokens
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
+	if err := ensureJSONResponse("bootstrap", resp, body); err != nil {
+		return nil, err
+	}
+
 	var result struct {
 		Data struct {
 			Options []SuperFlixServer `json:"options"`
@@ -475,6 +483,10 @@ func (c *SuperFlixClient) GetSourceURL(ctx context.Context, videoID string, toke
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if err := ensureJSONResponse("source", resp, body); err != nil {
+		return "", err
 	}
 
 	var result struct {
@@ -619,6 +631,10 @@ func (c *SuperFlixClient) GetVideoAPI(ctx context.Context, playerBaseURL, videoH
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if err := ensureJSONResponse("video API", resp, body); err != nil {
+		return "", "", err
 	}
 
 	var result struct {
@@ -766,6 +782,33 @@ func (m *SuperFlixMedia) ToAnimeModel() *models.Anime {
 	util.Debug("SuperFlix ToAnimeModel", "title", m.Title, "tmdbID", m.TMDBID, "imageURL", anime.ImageURL)
 
 	return anime
+}
+
+// ensureJSONResponse fails fast when a SuperFlix API endpoint replies with an
+// HTML body or a non-2xx status. Without this, callers get the unhelpful
+// `invalid character '<' looking for beginning of value` JSON error — which
+// hides real causes like the host having moved (the .rest → .online 301 that
+// silently downgrades POST → GET) or a Cloudflare/captcha interstitial.
+//
+// Trust the body, not the Content-Type header. Some upstream players (e.g.
+// firevideoplayer.com behind llanfairpwllgwyngy.com) serve real JSON with
+// `Content-Type: text/html`, so a header-only check would reject valid
+// responses.
+func ensureJSONResponse(label string, resp *http.Response, body []byte) error {
+	trimmed := strings.TrimLeft(string(body), " \t\r\n\ufeff")
+	looksHTML := len(trimmed) > 0 && trimmed[0] == '<'
+
+	if looksHTML {
+		finalURL := ""
+		if resp.Request != nil && resp.Request.URL != nil {
+			finalURL = resp.Request.URL.String()
+		}
+		return fmt.Errorf("%s endpoint returned HTML (status %d, url=%q) — provider may have moved or is blocking the request", label, resp.StatusCode, finalURL)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%s endpoint returned status %d", label, resp.StatusCode)
+	}
+	return nil
 }
 
 // Helper: split string by separator and trim each part
