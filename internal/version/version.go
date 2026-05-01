@@ -9,7 +9,7 @@ import (
 
 // Version is set via -ldflags at build time by the CI workflow.
 // Fallback value is used for local development builds.
-var Version = "1.8.3"
+var Version = "1.8.4"
 
 // BuildTime and Commit are injected by the CI workflow via -ldflags.
 var (
