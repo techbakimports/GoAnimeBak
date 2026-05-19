@@ -437,14 +437,14 @@ func defaultProviders() []EpisodeDataProvider {
 }
 
 // GetEpisodeDataWithFallback fetches episode data trying multiple providers concurrently.
-// All providers are launched in parallel and the first successful result is used.
+// All providers run in parallel; all results are collected before the first success is applied.
 func GetEpisodeDataWithFallback(animeID int, episodeNo int, anime *models.Anime) error {
 	providers := defaultProviders()
 
 	type providerResult struct {
 		name string
 		err  error
-		data models.Anime // snapshot of populated data
+		data models.Anime
 	}
 
 	resultCh := make(chan providerResult, len(providers))
@@ -452,32 +452,31 @@ func GetEpisodeDataWithFallback(animeID int, episodeNo int, anime *models.Anime)
 	for _, provider := range providers {
 		go func(p EpisodeDataProvider) {
 			util.Debugf("Trying episode data provider: %s", p.Name())
-			// Work on a copy so concurrent writes don't conflict
 			animeCopy := *anime
 			err := p.FetchEpisodeData(animeID, episodeNo, &animeCopy)
 			resultCh <- providerResult{name: p.Name(), err: err, data: animeCopy}
 		}(provider)
 	}
 
-	var errors []string
-	var lastErr error
-
+	// Collect all results before acting so every goroutine finishes cleanly.
+	results := make([]providerResult, 0, len(providers))
 	for range providers {
-		res := <-resultCh
+		results = append(results, <-resultCh)
+	}
+
+	var errMsgs []string
+	var lastErr error
+	for _, res := range results {
 		if res.err == nil {
 			util.Debugf("Successfully fetched episode data from %s", res.name)
-			// Copy episode data from the successful result
 			anime.Episodes = res.data.Episodes
 			return nil
 		}
-
 		lastErr = res.err
-		errMsg := fmt.Sprintf("%s: %v", res.name, res.err)
-		errors = append(errors, errMsg)
+		errMsgs = append(errMsgs, fmt.Sprintf("%s: %v", res.name, res.err))
 		util.Debugf("Provider %s failed: %v", res.name, res.err)
 	}
 
-	// All providers failed
 	return fmt.Errorf("all episode data providers failed: %s (last error: %w)",
-		strings.Join(errors, "; "), lastErr)
+		strings.Join(errMsgs, "; "), lastErr)
 }

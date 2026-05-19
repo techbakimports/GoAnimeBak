@@ -275,119 +275,106 @@ func SearchAnimeEnhanced(name string, source string) (*models.Anime, error) {
 	return selectedAnime, nil
 }
 
+// resolveScraperType determines the scraper type and display name for an anime,
+// updating anime.Source when it can be inferred from name tags or URL patterns.
+// Priority: Source field → language name tags → URL patterns → default AllAnime.
+func resolveScraperType(anime *models.Anime) (scraper.ScraperType, string) {
+	sourceLower := strings.ToLower(anime.Source)
+	switch {
+	case sourceLower == "allanime":
+		return scraper.AllAnimeType, "AllAnime"
+	case strings.Contains(sourceLower, "animefire"):
+		return scraper.AnimefireType, "Animefire.io"
+	case sourceLower == "animedrive":
+		return scraper.AnimeDriveType, "AnimeDrive"
+	case sourceLower == "goyabu":
+		return scraper.GoyabuType, "Goyabu"
+	case strings.Contains(anime.Name, "[English]"):
+		// 9Anime is handled before this call, so [English] remaining = AllAnime
+		anime.Source = "AllAnime"
+		return scraper.AllAnimeType, "AllAnime"
+	case strings.Contains(anime.Name, "[PT-BR]") || strings.Contains(anime.Name, "[Português]"):
+		switch {
+		case strings.Contains(anime.URL, "animesdrive"):
+			anime.Source = "AnimeDrive"
+			return scraper.AnimeDriveType, "AnimeDrive"
+		case strings.Contains(anime.URL, "goyabu"):
+			anime.Source = "Goyabu"
+			return scraper.GoyabuType, "Goyabu"
+		default:
+			anime.Source = "Animefire.io"
+			return scraper.AnimefireType, "Animefire.io"
+		}
+	case strings.Contains(anime.URL, "allanime") || (len(anime.URL) < 30 && strings.ContainsAny(anime.URL, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") && !strings.Contains(anime.URL, "http")):
+		anime.Source = "AllAnime"
+		return scraper.AllAnimeType, "AllAnime"
+	case strings.Contains(anime.URL, "animefire"):
+		anime.Source = "Animefire.io"
+		return scraper.AnimefireType, "Animefire.io"
+	case strings.Contains(anime.URL, "animesdrive"):
+		anime.Source = "AnimeDrive"
+		return scraper.AnimeDriveType, "AnimeDrive"
+	case strings.Contains(anime.URL, "goyabu"):
+		anime.Source = "Goyabu"
+		return scraper.GoyabuType, "Goyabu"
+	default:
+		anime.Source = "AllAnime"
+		return scraper.AllAnimeType, "AllAnime (default)"
+	}
+}
+
 // Enhanced episode fetching that works with different sources
 func GetAnimeEpisodesEnhanced(anime *models.Anime) ([]models.Episode, error) {
-	// Check if this is a SuperFlix source
 	if anime.Source == "SuperFlix" {
 		return GetSuperFlixEpisodes(anime)
 	}
-
-	// Check if this is a FlixHQ movie/TV show
 	if anime.Source == "FlixHQ" || anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV {
 		return GetFlixHQEpisodes(anime)
 	}
-
-	// Check if this is a 9Anime source
 	if anime.Source == "9Anime" {
 		return GetNineAnimeEpisodes(anime)
 	}
 
-	// Determine source type from multiple indicators with enhanced logic
-	var sourceName string
-
-	// Priority 1: Check the Source field (most reliable). Use a case-insensitive
-	// match for AnimeFire because the scraper emits "Animefire.io" (lowercase 'f')
-	// while older code paths/tests sometimes use the camelcase spelling "AnimeFire".
-	switch {
-	case anime.Source == "AllAnime":
-		sourceName = "AllAnime"
-	case strings.Contains(strings.ToLower(anime.Source), "animefire"):
-		sourceName = "Animefire.io"
-	case anime.Source == "AnimeDrive":
-		sourceName = "AnimeDrive"
-	case anime.Source == "Goyabu":
-		sourceName = "Goyabu"
-	case strings.Contains(anime.Name, "[English]"):
-		// Priority 2: Check language tags
-		// Need to disambiguate between AllAnime and 9Anime both tagged [English]
-		// 9Anime source is already set above, so remaining [English] = AllAnime
-		sourceName = "AllAnime"
-		anime.Source = "AllAnime" // Update source field
-	case strings.Contains(anime.Name, "[PT-BR]") || strings.Contains(anime.Name, "[Português]"):
-		// AnimeFire or AnimeDrive = Portuguese
-		// Check URL to determine which one
-		switch {
-		case strings.Contains(anime.URL, "animesdrive"):
-			sourceName = "AnimeDrive"
-			anime.Source = "AnimeDrive"
-		case strings.Contains(anime.URL, "goyabu"):
-			sourceName = "Goyabu"
-			anime.Source = "Goyabu"
-		default:
-			sourceName = "Animefire.io"
-			anime.Source = "Animefire.io"
-		}
-	case strings.Contains(anime.URL, "allanime") || (len(anime.URL) < 30 && strings.ContainsAny(anime.URL, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") && !strings.Contains(anime.URL, "http")):
-		// Priority 3: URL analysis for AllAnime (short IDs or allanime URLs)
-		sourceName = "AllAnime"
-		anime.Source = "AllAnime" // Update source field
-	case strings.Contains(anime.URL, "animefire"):
-		// Priority 4: URL analysis for AnimeFire
-		sourceName = "Animefire.io"
-		anime.Source = "Animefire.io" // Update source field
-	case strings.Contains(anime.URL, "animesdrive"):
-		// Priority 5: URL analysis for AnimeDrive
-		sourceName = "AnimeDrive"
-		anime.Source = "AnimeDrive" // Update source field
-	default:
-		// Default to AllAnime for unknown sources
-		sourceName = "AllAnime (default)"
-		anime.Source = "AllAnime"
-	}
+	scraperType, sourceName := resolveScraperType(anime)
 
 	cleanName := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(anime.Name, "[English]", ""), "[PT-BR]", ""))
-
 	util.Debug("Getting episodes", "source", sourceName, "anime", cleanName)
 
 	scraperManager := scraper.NewScraperManager()
 	var episodes []models.Episode
 	var err error
 
-	// Use different approaches based on source
-	switch {
-	case strings.Contains(sourceName, "AllAnime"):
+	switch scraperType {
+	case scraper.AllAnimeType:
 		scraperInstance, scErr := scraperManager.GetScraper(scraper.AllAnimeType)
 		if scErr != nil {
 			return nil, fmt.Errorf("failed to get AllAnime scraper: %w", scErr)
 		}
-
-		// Cast to AllAnime client to access enhanced features
 		if allAnimeClient, ok := scraperInstance.(*scraper.AllAnimeClient); ok && anime.MalID > 0 {
 			episodes, err = allAnimeClient.GetAnimeEpisodesWithAniSkip(anime.URL, anime.MalID, GetAndParseAniSkipData)
 			util.Debug("AniSkip integration enabled", "malID", anime.MalID)
 		} else {
 			episodes, err = scraperInstance.GetAnimeEpisodes(anime.URL)
 		}
-	case sourceName == "AnimeDrive":
+	case scraper.AnimeDriveType:
 		scraperInstance, scErr := scraperManager.GetScraper(scraper.AnimeDriveType)
 		if scErr != nil {
 			return nil, fmt.Errorf("failed to get AnimeDrive scraper: %w", scErr)
 		}
 		episodes, err = scraperInstance.GetAnimeEpisodes(anime.URL)
-	case sourceName == "Animefire.io":
+	case scraper.AnimefireType:
 		scraperInstance, scErr := scraperManager.GetScraper(scraper.AnimefireType)
 		if scErr != nil {
 			return nil, fmt.Errorf("failed to get AnimeFire scraper: %w", scErr)
 		}
 		episodes, err = scraperInstance.GetAnimeEpisodes(anime.URL)
-	case sourceName == "Goyabu":
+	case scraper.GoyabuType:
 		scraperInstance, scErr := scraperManager.GetScraper(scraper.GoyabuType)
 		if scErr != nil {
 			return nil, fmt.Errorf("failed to get Goyabu scraper: %w", scErr)
 		}
 		episodes, err = scraperInstance.GetAnimeEpisodes(anime.URL)
 	default:
-		// For others, use the original API function
 		episodes, err = GetAnimeEpisodes(anime.URL)
 	}
 
@@ -395,20 +382,10 @@ func GetAnimeEpisodesEnhanced(anime *models.Anime) ([]models.Episode, error) {
 		return nil, fmt.Errorf("failed to get episodes from %s: %w", sourceName, err)
 	}
 
-	if len(episodes) > 0 {
-		util.Debug("Episodes found", "count", len(episodes), "source", sourceName)
-
-		// Provide additional info for user based on source (debug only)
-		switch {
-		case strings.Contains(sourceName, "AllAnime"):
-			util.Debug("Source info", "type", "AllAnime", "quality", "high")
-		case sourceName == "AnimeDrive":
-			util.Debug("Source info", "type", "AnimeDrive", "features", "multiple qualities")
-		default:
-			util.Debug("Source info", "type", "Animefire.io", "features", "dubbed/subtitled")
-		}
-	} else {
+	if len(episodes) == 0 {
 		util.Warn("No episodes found", "source", sourceName)
+	} else {
+		util.Debug("Episodes found", "count", len(episodes), "source", sourceName)
 	}
 
 	return episodes, nil
@@ -459,68 +436,7 @@ func GetEpisodeStreamURL(episode *models.Episode, anime *models.Anime, quality s
 
 	scraperManager := scraper.NewScraperManager()
 
-	// Determine source type with enhanced logic
-	var scraperType scraper.ScraperType
-	var sourceName string
-
-	// Priority 1: Check the Source field (most reliable)
-	sourceLower := strings.ToLower(anime.Source)
-	switch {
-	case sourceLower == "allanime":
-		scraperType = scraper.AllAnimeType
-		sourceName = "AllAnime"
-	case strings.Contains(sourceLower, "animefire"):
-		scraperType = scraper.AnimefireType
-		sourceName = "Animefire.io"
-	case sourceLower == "animedrive":
-		scraperType = scraper.AnimeDriveType
-		sourceName = "AnimeDrive"
-	case sourceLower == "goyabu":
-		scraperType = scraper.GoyabuType
-		sourceName = "Goyabu"
-	case strings.Contains(anime.Name, "[English]"):
-		// Priority 2: Check language tags (AllAnime = English)
-		scraperType = scraper.AllAnimeType
-		sourceName = "AllAnime"
-	case strings.Contains(anime.Name, "[PT-BR]") || strings.Contains(anime.Name, "[Português]"):
-		// AnimeFire, Goyabu, or AnimeDrive = Portuguese
-		// Check URL to determine which one
-		switch {
-		case strings.Contains(anime.URL, "animesdrive"):
-			scraperType = scraper.AnimeDriveType
-			sourceName = "AnimeDrive"
-		case strings.Contains(anime.URL, "goyabu"):
-			scraperType = scraper.GoyabuType
-			sourceName = "Goyabu"
-		default:
-			scraperType = scraper.AnimefireType
-			sourceName = "Animefire.io"
-		}
-	case len(anime.URL) < 30 && strings.ContainsAny(anime.URL, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") && !strings.Contains(anime.URL, "http"):
-		// Priority 3: URL analysis for AllAnime (short IDs)
-		scraperType = scraper.AllAnimeType
-		sourceName = "AllAnime"
-	case strings.Contains(anime.URL, "animefire"):
-		// Priority 4: URL analysis for AnimeFire
-		scraperType = scraper.AnimefireType
-		sourceName = "Animefire.io"
-	case strings.Contains(anime.URL, "animesdrive"):
-		// Priority 5: URL analysis for AnimeDrive
-		scraperType = scraper.AnimeDriveType
-		sourceName = "AnimeDrive"
-	case strings.Contains(anime.URL, "goyabu"):
-		// Priority 5b: URL analysis for Goyabu
-		scraperType = scraper.GoyabuType
-		sourceName = "Goyabu"
-	case strings.Contains(anime.URL, "allanime"):
-		// Priority 6: AllAnime full URLs
-		scraperType = scraper.AllAnimeType
-		sourceName = "AllAnime"
-	default:
-		// Default to AllAnime
-		scraperType = scraper.AllAnimeType
-		sourceName = "AllAnime (default)"
-	}
+	scraperType, sourceName := resolveScraperType(anime)
 
 	util.Debug("Getting stream URL", "source", sourceName, "episode", episode.Number)
 
@@ -578,10 +494,8 @@ func GetEpisodeStreamURL(episode *models.Episode, anime *models.Anime, quality s
 	return streamURL, nil
 }
 
-// Enhanced download support
+// Enhanced download support — resolves stream URL only; actual download is handled by the legacy downloader.
 func DownloadEpisodeEnhanced(anime *models.Anime, episodeNum int, quality string) error {
-	util.Debugf("Fetching episodes for %s...", anime.Name)
-
 	episodes, err := GetAnimeEpisodesEnhanced(anime)
 	if err != nil {
 		return fmt.Errorf("failed to get episodes: %w", err)
@@ -592,24 +506,17 @@ func DownloadEpisodeEnhanced(anime *models.Anime, episodeNum int, quality string
 	}
 
 	episode := episodes[episodeNum-1]
-
-	util.Debugf("Getting stream URL for episode %d...", episodeNum)
-	streamURL, err := GetEpisodeStreamURL(&episode, anime, quality)
+	_, err = GetEpisodeStreamURL(&episode, anime, quality)
 	if err != nil {
 		return fmt.Errorf("failed to get stream URL: %w", err)
 	}
 
-	util.Debugf("Stream URL obtained: %s", streamURL)
-
-	// Create a basic downloader (this would integrate with your existing downloader)
-	return downloadFromURL(streamURL, fmt.Sprintf("%s_Episode_%d",
-		sanitizeFilename(anime.Name), episodeNum))
+	return fmt.Errorf("use legacy downloader")
 }
 
-// Enhanced range download support
+// DownloadEpisodeRangeEnhanced resolves episode stream URLs for the given range.
+// It always returns an error to signal the caller to fall back to the legacy downloader.
 func DownloadEpisodeRangeEnhanced(anime *models.Anime, startEp, endEp int, quality string) error {
-	util.Debugf("Fetching episodes for %s...", anime.Name)
-
 	episodes, err := GetAnimeEpisodesEnhanced(anime)
 	if err != nil {
 		return fmt.Errorf("failed to get episodes: %w", err)
@@ -619,24 +526,7 @@ func DownloadEpisodeRangeEnhanced(anime *models.Anime, startEp, endEp int, quali
 		return fmt.Errorf("invalid range %d-%d (available: 1-%d)", startEp, endEp, len(episodes))
 	}
 
-	for i := startEp; i <= endEp; i++ {
-		util.Infof("Downloading episode %d of %d...", i, endEp)
-
-		episode := episodes[i-1]
-		streamURL, err := GetEpisodeStreamURL(&episode, anime, quality)
-		if err != nil {
-			util.Errorf("Failed to get stream URL for episode %d: %v", i, err)
-			continue
-		}
-
-		filename := fmt.Sprintf("%s_Episode_%d", sanitizeFilename(anime.Name), i)
-		// Note: downloadFromURL is a placeholder - integrate with proper downloader
-		_ = downloadFromURL(streamURL, filename) // This will always fail as expected
-
-		util.Infof("Successfully downloaded episode %d", i)
-	}
-
-	return nil
+	return fmt.Errorf("use legacy downloader")
 }
 
 // Helper function to sanitize filename
@@ -658,391 +548,38 @@ func sanitizeFilename(name string) string {
 	return name
 }
 
-// Basic download function (placeholder - integrate with your existing downloader)
-func downloadFromURL(_ string, _ string) error {
-	// This is a placeholder that should fail to trigger fallback to the proper downloader
-	util.Debugf("Enhanced API downloadFromURL is a placeholder - returning error to trigger fallback")
-	return fmt.Errorf("enhanced download not implemented - use legacy downloader")
-}
-
 // Legacy wrapper functions to maintain compatibility
 func SearchAnimeWithSource(name string, source string) (*models.Anime, error) {
 	return SearchAnimeEnhanced(name, source)
 }
 
-// GetNineAnimeEpisodes handles episode fetching for 9anime sources
-//
-// TEMP-DISABLED: 9Anime source is temporarily disabled until a fix lands.
-// The original body is preserved below in a commented block.
+// GetNineAnimeEpisodes handles episode fetching for 9anime sources.
+// TEMP-DISABLED: restore once 9Anime fix lands.
 func GetNineAnimeEpisodes(anime *models.Anime) ([]models.Episode, error) {
 	_ = anime
 	return nil, fmt.Errorf("9Anime source is temporarily disabled")
-
-	/*
-		nineAnimeClient := scraper.NewNineAnimeClient()
-
-		// anime.URL contains the 9anime anime ID
-		animeID := anime.URL
-		util.Debug("Getting 9Anime episodes", "animeID", animeID)
-
-		episodes, err := nineAnimeClient.GetAnimeEpisodes(animeID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get episodes from 9Anime: %w", err)
-		}
-
-		util.Debug("9Anime episodes loaded", "count", len(episodes))
-		return episodes, nil
-	*/
 }
 
-// GetNineAnimeStreamURL gets the stream URL for 9anime content
-//
-// TEMP-DISABLED: 9Anime source is temporarily disabled until a fix lands.
-// The original body is preserved below in a commented block.
+// GetNineAnimeStreamURL gets the stream URL for 9anime content.
+// TEMP-DISABLED: restore once 9Anime fix lands.
 func GetNineAnimeStreamURL(anime *models.Anime, episode *models.Episode, quality string) (string, error) {
 	_, _, _ = anime, episode, quality
 	return "", fmt.Errorf("9Anime source is temporarily disabled")
-
-	/*
-			util.ClearGlobalSubtitles()
-			util.SetGlobalAnimeSource("9Anime")
-
-			nineAnimeClient := scraper.NewNineAnimeClient()
-
-			// episode.URL / episode.DataID contains the episode data-id
-			episodeID := episode.DataID
-			if episodeID == "" {
-				episodeID = episode.URL
-			}
-
-			util.Debug("Getting 9Anime stream", "episodeID", episodeID, "quality", quality)
-
-			// Use the unified GetStreamURL which tries multiple servers automatically
-			streamURL, metadata, err := nineAnimeClient.GetStreamURL(episodeID, "sub")
-			if err != nil {
-				return "", fmt.Errorf("failed to get stream URL from 9Anime: %w", err)
-			}
-
-		// Store referer globally for mpv playback
-		if referer, ok := metadata["referer"]; ok && referer != "" {
-			util.SetGlobalReferer(referer)
-		}
-
-		// Store subtitles globally for playback
-		if subtitleURLs, ok := metadata["subtitles"]; ok && subtitleURLs != "" && !util.GlobalNoSubs {
-			subURLs := strings.Split(subtitleURLs, ",")
-			var subLabels []string
-			if labels, ok := metadata["subtitle_labels"]; ok {
-				subLabels = strings.Split(labels, ",")
-			}
-
-			var subInfos []util.SubtitleInfo
-			for i, subURL := range subURLs {
-				label := "Unknown"
-				lang := "unknown"
-				if i < len(subLabels) {
-					label = subLabels[i]
-					// Try to extract language code from label
-					labelLower := strings.ToLower(label)
-					if strings.Contains(labelLower, "english") {
-						lang = "eng"
-					} else if strings.Contains(labelLower, "portuguese") {
-						lang = "por"
-					} else if strings.Contains(labelLower, "spanish") {
-						lang = "spa"
-					} else if strings.Contains(labelLower, "japanese") {
-						lang = "jpn"
-					} else if strings.Contains(labelLower, "french") {
-						lang = "fre"
-					} else if strings.Contains(labelLower, "german") {
-						lang = "ger"
-					} else if strings.Contains(labelLower, "italian") {
-						lang = "ita"
-					} else if strings.Contains(labelLower, "arabic") {
-						lang = "ara"
-					}
-				}
-				subInfos = append(subInfos, util.SubtitleInfo{
-					URL:      subURL,
-					Language: lang,
-					Label:    label,
-				})
-			}
-			util.SetGlobalSubtitles(subInfos)
-			util.Debug("9Anime subtitles loaded", "count", len(subInfos))
-		}
-
-		util.Debug("9Anime stream URL obtained", "url", streamURL[:min(len(streamURL), 80)])
-		return streamURL, nil
-	*/
 }
 
-// GetFlixHQEpisodes handles episodes/content for FlixHQ movies and TV shows
-//
-// TEMP-DISABLED: FlixHQ source is temporarily disabled until a fix lands.
-// The original body is preserved below in a commented block.
+// GetFlixHQEpisodes handles episodes/content for FlixHQ movies and TV shows.
+// TEMP-DISABLED: restore once FlixHQ fix lands.
 func GetFlixHQEpisodes(media *models.Anime) ([]models.Episode, error) {
 	_ = media
 	return nil, fmt.Errorf("FlixHQ source is temporarily disabled")
-
-	/*
-			flixhqClient := scraper.NewFlixHQClient()
-
-		// Extract media ID from URL
-		mediaID := extractMediaIDFromURL(media.URL)
-		if mediaID == "" {
-			return nil, fmt.Errorf("could not extract media ID from URL: %s", media.URL)
-		}
-
-		util.Debug("Getting FlixHQ content", "mediaType", media.MediaType, "mediaID", mediaID)
-
-		// For movies, return a single "episode" representing the movie
-		if media.MediaType == models.MediaTypeMovie {
-			util.Debug("FlixHQ: Processing movie")
-			return []models.Episode{
-				{
-					Number: "1",
-					Num:    1,
-					URL:    mediaID, // Store media ID for later use
-					Title: models.TitleDetails{
-						English: media.Name,
-						Romaji:  media.Name,
-					},
-				},
-			}, nil
-		}
-
-		// For TV shows, get seasons and let user select
-		util.Debug("FlixHQ: Processing TV show, getting seasons")
-
-		// Use spinner for loading seasons (network call)
-		var seasons []scraper.FlixHQSeason
-		var seasonsErr error
-		runWithSpinner("Loading seasons...", func() {
-			seasons, seasonsErr = flixhqClient.GetSeasons(mediaID)
-		})
-		if seasonsErr != nil {
-			return nil, fmt.Errorf("failed to get seasons: %w", seasonsErr)
-		}
-
-		if len(seasons) == 0 {
-			return nil, fmt.Errorf("no seasons found for TV show")
-		}
-
-		// Let user select a season using fuzzyfinder (same library as anime
-		// selection, so it manages its own terminal state via tcell and avoids
-		// the readline/escape-sequence issues that plague promptui after tcell).
-		seasonIdx, err := tui.Find(seasons, func(i int) string {
-			return seasons[i].Title
-		}, fuzzyfinder.WithPromptString("Select season: "))
-		if err != nil {
-			if errors.Is(err, fuzzyfinder.ErrAbort) {
-				return nil, ErrBackToSearch
-			}
-			return nil, fmt.Errorf("season selection cancelled: %w", err)
-		}
-
-		selectedSeason := seasons[seasonIdx]
-		media.CurrentSeason = selectedSeason.Number
-		util.Debug("Selected season", "season", selectedSeason.Title, "id", selectedSeason.ID, "number", selectedSeason.Number)
-
-		// Use spinner for loading episodes (network call)
-		var flixEpisodes []scraper.FlixHQEpisode
-		var episodesErr error
-		runWithSpinner("Loading episodes...", func() {
-			flixEpisodes, episodesErr = flixhqClient.GetEpisodes(selectedSeason.ID)
-		})
-		if episodesErr != nil {
-			return nil, fmt.Errorf("failed to get episodes: %w", episodesErr)
-		}
-
-		// Convert to models.Episode
-		var episodes []models.Episode
-		for _, ep := range flixEpisodes {
-			episodes = append(episodes, models.Episode{
-				Number: fmt.Sprintf("%d", ep.Number),
-				Num:    ep.Number,
-				URL:    ep.DataID, // Store DataID for stream retrieval
-				Title: models.TitleDetails{
-					English: ep.Title,
-					Romaji:  ep.Title,
-				},
-				DataID:   ep.DataID,
-				SeasonID: selectedSeason.ID,
-			})
-		}
-
-		util.Debug("FlixHQ episodes loaded", "count", len(episodes))
-		return episodes, nil
-	*/
 }
 
-// GetFlixHQStreamURL gets the stream URL for FlixHQ content
-//
-// TEMP-DISABLED: FlixHQ source is temporarily disabled until a fix lands.
-// The original body is preserved below in a commented block.
+// GetFlixHQStreamURL gets the stream URL for FlixHQ content.
+// TEMP-DISABLED: restore once FlixHQ fix lands.
 func GetFlixHQStreamURL(media *models.Anime, episode *models.Episode, quality string) (string, []models.Subtitle, error) {
 	_, _, _ = media, episode, quality
 	return "", nil, fmt.Errorf("FlixHQ source is temporarily disabled")
-
-	/*
-			flixhqClient := scraper.NewFlixHQClient()
-			// Set media path for decryption API
-			if media.URL != "" {
-				flixhqClient.SetMediaPath(scraper.ExtractMediaPath(media.URL))
-			}
-		provider := "Vidcloud"
-		subsLanguage := util.GlobalSubsLanguage
-		if subsLanguage == "" {
-			subsLanguage = "english"
-		}
-
-		var streamInfo *scraper.FlixHQStreamInfo
-		var episodeID string
-		var embedLink string
-		var streamErr error
-
-		if media.MediaType == models.MediaTypeMovie {
-			// For movies, episode.URL contains the media ID
-			mediaID := episode.URL
-			util.Debug("Getting movie stream", "mediaID", mediaID)
-
-			// Run network calls (server ID, embed link, stream extraction) with optional spinner
-			runWithSpinner("Loading movie stream...", func() {
-				episodeID, streamErr = flixhqClient.GetMovieServerID(mediaID, provider)
-				if streamErr != nil {
-					return
-				}
-
-				embedLink, streamErr = flixhqClient.GetEmbedLink(episodeID)
-				if streamErr != nil {
-					return
-				}
-
-				// Extract stream info to get available qualities
-				streamInfo, streamErr = flixhqClient.ExtractStreamInfo(embedLink, "auto", subsLanguage)
-			})
-
-			if streamErr != nil {
-				return "", nil, fmt.Errorf("failed to get movie stream: %w", streamErr)
-			}
-
-			if streamInfo == nil {
-				return "", nil, fmt.Errorf("failed to get movie stream: no stream info returned")
-			}
-
-			// If we have multiple quality options, let user choose (UI - no spinner needed)
-			if len(streamInfo.Qualities) > 1 {
-				selectedQuality, selectErr := selectFlixHQQualityOptions(streamInfo.Qualities)
-				if selectErr == nil && selectedQuality.URL != "" {
-					streamInfo.VideoURL = selectedQuality.URL
-					streamInfo.Quality = string(selectedQuality.Quality)
-					streamInfo.IsM3U8 = selectedQuality.IsM3U8
-				}
-			}
-		} else {
-			// For TV shows, episode.URL contains the DataID
-			dataID := episode.URL
-			util.Debug("Getting TV episode stream", "dataID", dataID)
-
-			// Run network calls (server ID, embed link, stream extraction) with optional spinner
-			runWithSpinner("Loading episode stream...", func() {
-				episodeID, streamErr = flixhqClient.GetEpisodeServerID(dataID, provider)
-				if streamErr != nil {
-					return
-				}
-
-				embedLink, streamErr = flixhqClient.GetEmbedLink(episodeID)
-				if streamErr != nil {
-					return
-				}
-
-				// Extract stream info to get available qualities
-				streamInfo, streamErr = flixhqClient.ExtractStreamInfo(embedLink, "auto", subsLanguage)
-			})
-
-			if streamErr != nil {
-				return "", nil, fmt.Errorf("failed to get episode stream: %w", streamErr)
-			}
-
-			if streamInfo == nil {
-				return "", nil, fmt.Errorf("failed to get episode stream: no stream info returned")
-			}
-
-			// If we have multiple quality options, let user choose (UI - no spinner needed)
-			if len(streamInfo.Qualities) > 1 {
-				selectedQuality, selectErr := selectFlixHQQualityOptions(streamInfo.Qualities)
-				if selectErr == nil && selectedQuality.URL != "" {
-					streamInfo.VideoURL = selectedQuality.URL
-					streamInfo.Quality = string(selectedQuality.Quality)
-					streamInfo.IsM3U8 = selectedQuality.IsM3U8
-				}
-			}
-		}
-
-		// Convert subtitles
-		var subtitles []models.Subtitle
-		for _, sub := range streamInfo.Subtitles {
-			subtitles = append(subtitles, models.Subtitle{
-				URL:      sub.URL,
-				Language: sub.Language,
-				Label:    sub.Label,
-			})
-		}
-
-		// Store the referer globally for use in downloads
-		if streamInfo.Referer != "" {
-			util.SetGlobalReferer(streamInfo.Referer)
-		}
-
-		return streamInfo.VideoURL, subtitles, nil
-	*/
 }
-
-// TEMP-DISABLED: selectFlixHQQualityOptions only used by GetFlixHQStreamURL body.
-// Restore alongside the GetFlixHQStreamURL function body.
-/*
-func selectFlixHQQualityOptions(qualities []scraper.FlixHQQualityOption) (scraper.FlixHQQualityOption, error) {
-	if len(qualities) == 0 {
-		return scraper.FlixHQQualityOption{Quality: scraper.QualityAuto}, fmt.Errorf("no qualities available")
-	}
-
-	// If only one quality, use it directly
-	if len(qualities) == 1 {
-		return qualities[0], nil
-	}
-
-	// Build labels for each quality
-	var items []string
-	client := scraper.NewFlixHQClient()
-	for _, q := range qualities {
-		items = append(items, client.QualityToLabel(q.Quality))
-	}
-
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select video quality: "))
-	if err != nil {
-		// On error/cancel, return first (auto) quality
-		return qualities[0], err
-	}
-
-	return qualities[idx], nil
-}
-*/
-
-// TEMP-DISABLED: extractMediaIDFromURL only used by GetFlixHQEpisodes body.
-// Restore alongside the GetFlixHQEpisodes function body.
-/*
-func extractMediaIDFromURL(urlStr string) string {
-	// URL format: https://flixhq.to/movie/watch-movie-name-12345 or /movie/watch-movie-name-12345
-	parts := strings.Split(urlStr, "-")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
-	return ""
-}
-*/
 
 func GetAnimeEpisodesWithSource(anime *models.Anime) ([]models.Episode, error) {
 	return GetAnimeEpisodesEnhanced(anime)

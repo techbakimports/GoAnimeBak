@@ -8,6 +8,9 @@ import (
 )
 
 func TestSFlixClient_Search(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live SFlix network test in -short mode")
+	}
 	client := NewSFlixClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -28,6 +31,9 @@ func TestSFlixClient_Search(t *testing.T) {
 }
 
 func TestSFlixClient_GetInfo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live SFlix network test in -short mode")
+	}
 	client := NewSFlixClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -56,6 +62,9 @@ func TestSFlixClient_GetInfo(t *testing.T) {
 }
 
 func TestSFlixClient_HealthCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live SFlix network test in -short mode")
+	}
 	client := NewSFlixClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

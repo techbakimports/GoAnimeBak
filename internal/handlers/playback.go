@@ -49,17 +49,15 @@ func HandlePlaybackMode(animeName string) {
 		}
 
 		// Fetch details and episodes.
-		// For FlixHQ/movie/TV content, GetAnimeEpisodes may show interactive
-		// UI (season selection fuzzyfinder), so we CANNOT run it concurrently
-		// with FetchAnimeDetails (which runs a Bubble Tea spinner).  Two
-		// programs fighting over the terminal at the same time corrupts
-		// terminal state and causes arrow-key escape sequences to be printed
-		// as raw text.  For regular anime the episodes fetch is non-interactive,
+		// SuperFlix and movie/TV sources show a fuzzyfinder season-selector, so
+		// they CANNOT run concurrently with FetchAnimeDetails (a Bubble Tea spinner).
+		// Two programs fighting over the terminal corrupts state and prints raw
+		// escape sequences. For regular anime the episodes fetch is non-interactive,
 		// so parallelism is safe there.
 		var episodes []models.Episode
 		var epErr error
 
-		needsInteractiveEpisodes := anime.Source == "FlixHQ" ||
+		needsInteractiveEpisodes := anime.Source == "SuperFlix" ||
 			anime.MediaType == models.MediaTypeMovie ||
 			anime.MediaType == models.MediaTypeTV
 

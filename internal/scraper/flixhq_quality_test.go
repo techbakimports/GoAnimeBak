@@ -86,6 +86,9 @@ func TestIsFlixHQUnavailable_SurfTimeoutFromCI(t *testing.T) {
 }
 
 func TestFlixHQClient_GetInfo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -123,6 +126,9 @@ func TestFlixHQClient_GetInfo(t *testing.T) {
 }
 
 func TestFlixHQClient_GetServers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -169,6 +175,9 @@ func TestFlixHQClient_GetServers(t *testing.T) {
 }
 
 func TestFlixHQClient_GetSources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -224,6 +233,9 @@ func TestFlixHQClient_GetSources(t *testing.T) {
 }
 
 func TestFlixHQClient_GetAvailableQualities(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -309,6 +321,9 @@ func TestFlixHQClient_SelectBestQuality(t *testing.T) {
 }
 
 func TestFlixHQClient_HealthCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -320,6 +335,9 @@ func TestFlixHQClient_HealthCheck(t *testing.T) {
 }
 
 func TestFlixHQClient_Caching(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 	ctx := context.Background()
 

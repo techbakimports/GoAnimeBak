@@ -1,10 +1,12 @@
 package scraper
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +26,9 @@ func newFlixHQClientForTest(baseURL string) *FlixHQClient {
 }
 
 func TestFlixHQClient_SearchMedia(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live FlixHQ network test in -short mode")
+	}
 	client := NewFlixHQClient()
 
 	tests := []struct {
@@ -50,7 +55,9 @@ func TestFlixHQClient_SearchMedia(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results, err := client.SearchMedia(tt.query)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			results, err := client.SearchMediaWithContext(ctx, tt.query)
 			if err != nil && isFlixHQUnavailable(err) {
 				t.Skipf("Skipping - external service unavailable: %v", err)
 			}

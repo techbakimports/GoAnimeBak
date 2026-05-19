@@ -8,6 +8,9 @@ import (
 )
 
 func TestNineAnimeClient_Search(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live 9Anime network test in -short mode")
+	}
 	client := NewNineAnimeClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -33,6 +36,9 @@ func TestNineAnimeClient_Search(t *testing.T) {
 }
 
 func TestNineAnimeClient_GetEpisodes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live 9Anime network test in -short mode")
+	}
 	client := NewNineAnimeClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -64,6 +70,9 @@ func TestNineAnimeClient_GetEpisodes(t *testing.T) {
 }
 
 func TestNineAnimeClient_GetServers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live 9Anime network test in -short mode")
+	}
 	client := NewNineAnimeClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -96,10 +105,14 @@ func TestNineAnimeClient_GetServers(t *testing.T) {
 }
 
 func TestNineAnimeClient_GetAnimeEpisodes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live 9Anime network test in -short mode")
+	}
 	client := NewNineAnimeClient()
 
-	// Test the models.Episode conversion
-	results, err := client.SearchAnime("naruto")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	results, err := client.SearchAnimeWithContext(ctx, "naruto")
 	if err != nil || len(results) == 0 {
 		t.Skipf("9anime search failed or no results: %v", err)
 		return
