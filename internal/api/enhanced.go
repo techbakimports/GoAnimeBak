@@ -192,77 +192,10 @@ func SearchAnimeEnhanced(name string, source string) (*models.Anime, error) {
 		return languagePriority(animes[i].Name) < languagePriority(animes[j].Name)
 	})
 
-	// Create a special "back" option as the first item
-	backOption := &models.Anime{
-		Name:   "← Back",
-		URL:    "__back__",
-		Source: "__back__",
-	}
-
-	// Prepend back option to the list
-	animesWithBack := make([]*models.Anime, 0, len(animes)+1)
-	animesWithBack = append(animesWithBack, backOption)
-	animesWithBack = append(animesWithBack, animes...)
-
-	// Use fuzzy finder to let user select
-	var idx int
-	var err error
-
-	if util.IsDebug {
-		// In debug mode, show preview window with technical details
-		idx, err = tui.Find(
-			animesWithBack,
-			func(i int) string {
-				a := animesWithBack[i]
-				name := a.Name
-				// Append release year if available and not already in the name
-				if a.Year != "" && !strings.Contains(name, "("+a.Year+")") {
-					name += " (" + a.Year + ")"
-				}
-				return name
-			},
-			fuzzyfinder.WithPromptString("Select the anime you want: "),
-			fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-				if i >= 0 && i < len(animesWithBack) {
-					anime := animesWithBack[i]
-					if anime.Source == "__back__" {
-						return "Go back to perform a new search"
-					}
-					var preview string
-					preview = "Source: " + anime.Source + "\nURL: " + anime.URL
-					if anime.ImageURL != "" {
-						preview += "\nImage: " + anime.ImageURL
-					}
-					return preview
-				}
-				return ""
-			}),
-		)
-	} else {
-		// In normal mode, no preview window at all
-		idx, err = tui.Find(
-			animesWithBack,
-			func(i int) string {
-				a := animesWithBack[i]
-				name := a.Name
-				// Append release year if available and not already in the name
-				if a.Year != "" && !strings.Contains(name, "("+a.Year+")") {
-					name += " (" + a.Year + ")"
-				}
-				return name
-			},
-			fuzzyfinder.WithPromptString("Select the anime you want: "),
-		)
-	}
-
+	// Show Bubble Tea anime selector
+	selectedAnime, err := tui.RunAnimeList(animes)
 	if err != nil {
-		return nil, fmt.Errorf("anime selection cancelled: %w", err)
-	}
-
-	selectedAnime := animesWithBack[idx]
-
-	// Check if user selected the back option
-	if selectedAnime.Source == "__back__" {
+		// User chose "← Nova Busca" or pressed esc
 		return nil, ErrBackToSearch
 	}
 	util.Debug("Anime selected", "name", selectedAnime.Name, "source", selectedAnime.Source)

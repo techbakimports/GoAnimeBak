@@ -48,6 +48,16 @@ func SearchAnimeEnhanced(name string) (*models.Anime, error) {
 func SearchAnimeWithRetry(name string) (*models.Anime, error) {
 	currentName := name
 
+	// When no name is provided show the dashboard so the user can search or
+	// continue watching from their history.
+	if strings.TrimSpace(currentName) == "" {
+		result := tui.RunDashboard()
+		if strings.TrimSpace(result) == "" {
+			return nil, fmt.Errorf("search cancelled by user")
+		}
+		currentName = result
+	}
+
 	for {
 		searchStart := time.Now()
 

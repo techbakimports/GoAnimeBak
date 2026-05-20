@@ -24,6 +24,13 @@ func NewProgram(model tea.Model, extra ...tea.ProgramOption) *tea.Program {
 	return tea.NewProgram(model, BubbleTeaProgramOptions(extra...)...)
 }
 
+// NewSelectorProgram constructs a Bubble Tea program for interactive selectors
+// (anime list, episode list, menu). Unlike NewProgram, it does NOT override
+// TERM_PROGRAM so that Windows Terminal renders colors correctly.
+func NewSelectorProgram(model tea.Model) *tea.Program {
+	return tea.NewProgram(model, tea.WithColorProfile(colorprofile.TrueColor))
+}
+
 // RunClean runs a TUI action with terminal capability probes suppressed and
 // drains delayed terminal responses afterwards.
 func RunClean(run func() error) error {
