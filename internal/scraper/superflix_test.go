@@ -987,10 +987,10 @@ func TestGetVideoAPI_SecuredLink(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Contains(t, r.URL.Path, "/player/index.php")
-		assert.Equal(t, "getVideo", r.URL.Query().Get("do"))
-		assert.Equal(t, "hashABC", r.URL.Query().Get("data"))
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "XMLHttpRequest", r.Header.Get("X-Requested-With"))
+		assert.Equal(t, "getVideo", r.FormValue("do"))
+		assert.Equal(t, "hashABC", r.FormValue("data"))
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"securedLink":"https://cdn.example.com/stream.m3u8","videoImage":"https://img.example.com/thumb.jpg"}`)
@@ -1964,12 +1964,13 @@ func TestRegexPatterns(t *testing.T) {
 }
 
 // =============================================================================
-// Regression tests (added 2026-04-30)
+// Regression tests (added 2026-04-30, updated 2026-05-19)
 //
-// Context: SuperFlix moved from `superflixapi.rest` to `superflixapi.online`
-// using a server-side 301 redirect. Go's http.Client follows the redirect but
-// downgrades the POST to a GET (dropping the body), so /player/bootstrap
-// returned an HTML 404 page. The JSON decoder then surfaced the cryptic
+// Context: SuperFlix moved from `superflixapi.rest` → `superflixapi.online` →
+// `superflixapi.best`. Each migration used a server-side 301 redirect.
+// Go's http.Client follows the redirect but downgrades the POST to a GET
+// (dropping the body), so /player/bootstrap returned an HTML 404 page.
+// The JSON decoder then surfaced the cryptic
 // `invalid character '<' looking for beginning of value`, breaking playback.
 // These tests pin (a) the canonical base URL and (b) that an HTML/non-2xx
 // response from the player API produces a clear, actionable error rather
@@ -1980,7 +1981,7 @@ func TestSuperFlixBase_PointsToOnlineHost_2026_04_30(t *testing.T) {
 	t.Parallel()
 	// Pinning the canonical host. If this needs to change in the future,
 	// also update internal/api/providers/metadata/metadata.go.
-	assert.Equal(t, "https://superflixapi.online", SuperFlixBase)
+	assert.Equal(t, "https://superflixapi.best", SuperFlixBase)
 }
 
 func TestBootstrap_HTMLResponseSurfacesActionableError_2026_04_30(t *testing.T) {

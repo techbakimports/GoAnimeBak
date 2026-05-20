@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	ytdlp "github.com/lrstanley/go-ytdlp"
 	"github.com/alvarorichard/Goanime/internal/models"
 	"github.com/alvarorichard/Goanime/internal/util"
 )
@@ -29,10 +30,10 @@ var ErrSuperFlixNoServers = errors.New("superflix: no servers available for this
 
 const (
 	// SuperFlixBase is the canonical SuperFlix host. The legacy
-	// `superflixapi.rest` host now 301-redirects here; Go's http.Client follows
+	// `superflixapi.online` host now 301-redirects here; Go's http.Client follows
 	// the redirect but downgrades the POST to a GET (dropping the body), which
 	// makes /player/bootstrap return HTML 404 and break JSON decoding.
-	SuperFlixBase      = "https://superflixapi.online"
+	SuperFlixBase      = "https://superflixapi.best"
 	SuperFlixUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
@@ -47,6 +48,10 @@ var (
 	sfDefaultAudioRe = regexp.MustCompile(`var defaultAudio\s*=\s*(\[.+?\]);`)
 	sfSubtitleRe     = regexp.MustCompile(`var playerjsSubtitle\s*=\s*"(.+?)";`)
 	sfSubPartRe      = regexp.MustCompile(`\[(.+?)\](https?://.+)`)
+
+	// Option B: regexes for extracting stream URLs from external player HTML
+	sfStreamFileRe = regexp.MustCompile(`(?i)(?:file|src|url|source)\s*[=:]\s*['"](\s*https?://[^'"]+\.(?:m3u8|mp4)[^'"]*)['"]`)
+	sfDirectM3U8Re = regexp.MustCompile(`https?://[^\s'"<>\x00-\x1f]+\.m3u8(?:\?[^\s'"<>\x00-\x1f]*)?`)
 )
 
 // SuperFlixTokens holds the tokens extracted from a SuperFlix player page
@@ -642,11 +647,14 @@ func (c *SuperFlixClient) ExtractPlayerExtras(html string) (defaultAudio []strin
 	return
 }
 
-// GetVideoAPI calls the external player's API to get the actual stream URL
+// GetVideoAPI calls the external player's API (Option A) to get the actual stream URL.
+// Sends a POST with form body so the server treats it as an AJAX call and returns JSON.
 func (c *SuperFlixClient) GetVideoAPI(ctx context.Context, playerBaseURL, videoHash, referer string) (streamURL, thumbURL string, err error) {
-	apiURL := fmt.Sprintf("%s/player/index.php?data=%s&do=getVideo", playerBaseURL, videoHash)
+	apiURL := playerBaseURL + "/player/index.php"
 
 	form := url.Values{
+		"data": {videoHash},
+		"do":   {"getVideo"},
 		"hash": {videoHash},
 		"r":    {c.baseURL + "/"},
 	}
@@ -657,7 +665,9 @@ func (c *SuperFlixClient) GetVideoAPI(ctx context.Context, playerBaseURL, videoH
 	}
 	c.decorateRequest(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
 	req.Header.Set("Referer", referer)
+	req.Header.Set("Origin", playerBaseURL)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
 	resp, err := c.client.Do(req)
@@ -694,6 +704,52 @@ func (c *SuperFlixClient) GetVideoAPI(ctx context.Context, playerBaseURL, videoH
 	}
 
 	return streamURL, result.VideoImage, nil
+}
+
+// extractStreamFromPlayerHTML is Option B: scan already-downloaded player HTML for an embedded
+// stream URL (PlayerJS / KodikPlayer typically embed file:"url" or bare m3u8 links).
+func extractStreamFromPlayerHTML(html string) (string, error) {
+	if m := sfStreamFileRe.FindStringSubmatch(html); len(m) > 1 {
+		u := strings.TrimSpace(m[1])
+		if strings.HasPrefix(u, "http") {
+			return u, nil
+		}
+	}
+	if u := sfDirectM3U8Re.FindString(html); u != "" {
+		return u, nil
+	}
+	return "", fmt.Errorf("no stream URL found in player HTML")
+}
+
+// getStreamURLWithYTDLP is Option C: delegate stream extraction to yt-dlp, which
+// handles dozens of embedded player formats natively.
+func getStreamURLWithYTDLP(ctx context.Context, playerURL, referer, userAgent string) (string, error) {
+	if _, err := ytdlp.Install(ctx, nil); err != nil {
+		return "", fmt.Errorf("yt-dlp not available: %w", err)
+	}
+
+	dl := ytdlp.New().
+		GetURL().
+		Simulate().
+		Referer(referer).
+		AddHeaders("User-Agent: " + userAgent)
+
+	if util.YtdlpCanImpersonate() {
+		dl = dl.Impersonate("chrome")
+	}
+
+	result, err := dl.Run(ctx, playerURL)
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp extraction failed: %w", err)
+	}
+
+	for line := range strings.SplitSeq(result.Stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "http") {
+			return line, nil
+		}
+	}
+	return "", fmt.Errorf("yt-dlp returned no valid URL from %q", playerURL)
 }
 
 // GetStreamURL is the full pipeline: player page → tokens → bootstrap → source → redirect → video API
@@ -773,9 +829,30 @@ func (c *SuperFlixClient) GetStreamURL(ctx context.Context, mediaType, mediaID, 
 	}
 
 	referer := fmt.Sprintf("%s/video/%s", playerBaseURL, videoHash)
+
+	// Option A: POST to external player API
 	streamURL, thumbURL, err := c.GetVideoAPI(ctx, playerBaseURL, videoHash, referer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get video from API: %w", err)
+		// Only fall through to B/C when the server returned HTML (blocked/captcha).
+		// A clean JSON error (e.g. "no stream URL") is a definitive failure — no point retrying.
+		if !strings.Contains(err.Error(), "HTML") {
+			return nil, fmt.Errorf("failed to get video from API: %w", err)
+		}
+		util.Warnf("SuperFlix video API POST blocked by HTML (%v) — trying HTML extraction", err)
+
+		// Option B: extract from already-loaded player HTML
+		streamURL, err = extractStreamFromPlayerHTML(playerHTML)
+		if err != nil {
+			util.Warnf("SuperFlix HTML stream extraction failed (%v) — trying yt-dlp", err)
+
+			// Option C: yt-dlp
+			playerPageURL := fmt.Sprintf("%s/video/%s", playerBaseURL, videoHash)
+			streamURL, err = getStreamURLWithYTDLP(ctx, playerPageURL, referer, c.userAgent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get video from API: all strategies exhausted (last: %w)", err)
+			}
+		}
+		thumbURL = ""
 	}
 
 	result := &SuperFlixStreamResult{

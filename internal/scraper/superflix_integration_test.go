@@ -109,7 +109,7 @@ func buildSuperFlixTestServer(t *testing.T, opts testServerOpts) *httptest.Serve
 		</html>`)
 	})
 
-	// Video API endpoint
+	// Video API endpoint — POST with form body (Option A)
 	mux.HandleFunc("/player/index.php", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
