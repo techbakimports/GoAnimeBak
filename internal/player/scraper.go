@@ -24,7 +24,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/util"
 	g "github.com/enetx/g"
 	"github.com/enetx/surf"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 // Pre-compiled regexes for player scraper (avoid per-call compilation)
@@ -1200,25 +1199,18 @@ func extractActualVideoURL(videoSrc string) (string, error) {
 				}
 			}
 
-			// Prompt user for quality selection. The picker stays on
-			// go-fuzzyfinder; a prior huh.Select migration regressed
-			// rendering ("piorou") in the user's terminal. Logic fixes
-			// (descending sort, mirror-N disambiguation, friendly fallback
-			// labels, ErrAbort routing, index-based selection) live in
-			// buildAnimeFireQualityItems and are pinned by
-			// animefire_quality_menu_test.go.
 			sortedData, qualityLabels := buildAnimeFireQualityItems(videoResponse.Data)
 
-			qIdx, err := tui.Find(qualityLabels, func(i int) string {
-				return qualityLabels[i]
-			}, fuzzyfinder.WithPromptString("Select Video Quality: "))
-			if err != nil {
-				if errors.Is(err, fuzzyfinder.ErrAbort) {
-					return "", ErrBackRequested
-				}
-				return "", fmt.Errorf("failed to select quality: %w", err)
+			qItems := make([]tui.MenuItem, len(qualityLabels))
+			for i, l := range qualityLabels {
+				qItems[i] = tui.MenuItem{Label: l, Value: strconv.Itoa(i)}
 			}
-			if qIdx < 0 || qIdx >= len(sortedData) {
+			qChoice := tui.RunMenu("Select Video Quality", qItems)
+			if qChoice == "q" || qChoice == "back" {
+				return "", ErrBackRequested
+			}
+			qIdx, err := strconv.Atoi(qChoice)
+			if err != nil || qIdx < 0 || qIdx >= len(sortedData) {
 				return "", fmt.Errorf("invalid quality selection: index %d out of range", qIdx)
 			}
 			picked := sortedData[qIdx]

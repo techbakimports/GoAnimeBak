@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -298,21 +299,22 @@ func selectAnimeWithGoFuzzyFinder(animes []models.Anime) (*models.Anime, error) 
 		return animes[i].Name < animes[j].Name
 	})
 
-	idx, err := tui.Find(animes, func(i int) string {
-		name := animes[i].Name
-		name = strings.ReplaceAll(name, "[AllAnime]", "[English]")
+	items := make([]tui.MenuItem, len(animes))
+	for i, a := range animes {
+		name := strings.ReplaceAll(a.Name, "[AllAnime]", "[English]")
 		name = strings.ReplaceAll(name, "[AnimeFire]", "[PT-BR]")
-		// Append release year if available and not already in the name
-		if animes[i].Year != "" && !strings.Contains(name, "("+animes[i].Year+")") {
-			name += " (" + animes[i].Year + ")"
+		if a.Year != "" && !strings.Contains(name, "("+a.Year+")") {
+			name += " (" + a.Year + ")"
 		}
-		return name
-	})
-	if err != nil {
-		return nil, fmt.Errorf("fuzzy selection failed: %w", err)
+		items[i] = tui.MenuItem{Label: name, Value: strconv.Itoa(i)}
 	}
 
-	if idx < 0 || idx >= len(animes) {
+	choice := tui.RunMenu("Select anime", items)
+	if choice == "q" || choice == "back" {
+		return nil, fmt.Errorf("selection cancelled")
+	}
+	idx, err := strconv.Atoi(choice)
+	if err != nil || idx < 0 || idx >= len(animes) {
 		return nil, errors.New("invalid selection index")
 	}
 	return &animes[idx], nil

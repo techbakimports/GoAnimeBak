@@ -135,6 +135,111 @@ func (p *goyabuProvider) FetchStreamURL(_ context.Context, episode *models.Episo
 	return url, nil
 }
 
+// --- HiAnime Provider ---
+
+type hiAnimeProvider struct {
+	sm *scraper.ScraperManager
+}
+
+func init() {
+	RegisterProvider(source.HiAnime, func(sm *scraper.ScraperManager) Provider {
+		return &hiAnimeProvider{sm: sm}
+	})
+}
+
+func (p *hiAnimeProvider) Kind() source.SourceKind { return source.HiAnime }
+func (p *hiAnimeProvider) HasSeasons() bool        { return false }
+
+func (p *hiAnimeProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
+	adapter, err := p.sm.GetScraper(scraper.HiAnimeType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.GetAnimeEpisodes(anime.URL)
+}
+
+func (p *hiAnimeProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
+	adapter, err := p.sm.GetScraper(scraper.HiAnimeType)
+	if err != nil {
+		return "", err
+	}
+	url, _, err := adapter.GetStreamURL(episode.URL)
+	if err != nil {
+		return "", fmt.Errorf("hianime stream: %w", err)
+	}
+	return url, nil
+}
+
+// --- GogoAnime Provider ---
+
+type gogoAnimeProvider struct {
+	sm *scraper.ScraperManager
+}
+
+func init() {
+	RegisterProvider(source.GogoAnime, func(sm *scraper.ScraperManager) Provider {
+		return &gogoAnimeProvider{sm: sm}
+	})
+}
+
+func (p *gogoAnimeProvider) Kind() source.SourceKind { return source.GogoAnime }
+func (p *gogoAnimeProvider) HasSeasons() bool        { return false }
+
+func (p *gogoAnimeProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
+	adapter, err := p.sm.GetScraper(scraper.GogoAnimeType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.GetAnimeEpisodes(anime.URL)
+}
+
+func (p *gogoAnimeProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
+	adapter, err := p.sm.GetScraper(scraper.GogoAnimeType)
+	if err != nil {
+		return "", err
+	}
+	url, _, err := adapter.GetStreamURL(episode.URL)
+	if err != nil {
+		return "", fmt.Errorf("gogoanime stream: %w", err)
+	}
+	return url, nil
+}
+
+// --- AniNeko Provider ---
+
+type aniNekoProvider struct {
+	sm *scraper.ScraperManager
+}
+
+func init() {
+	RegisterProvider(source.AniNeko, func(sm *scraper.ScraperManager) Provider {
+		return &aniNekoProvider{sm: sm}
+	})
+}
+
+func (p *aniNekoProvider) Kind() source.SourceKind { return source.AniNeko }
+func (p *aniNekoProvider) HasSeasons() bool        { return false }
+
+func (p *aniNekoProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
+	adapter, err := p.sm.GetScraper(scraper.AniNekoType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.GetAnimeEpisodes(anime.URL)
+}
+
+func (p *aniNekoProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
+	adapter, err := p.sm.GetScraper(scraper.AniNekoType)
+	if err != nil {
+		return "", err
+	}
+	url, _, err := adapter.GetStreamURL(episode.URL)
+	if err != nil {
+		return "", fmt.Errorf("anineko stream: %w", err)
+	}
+	return url, nil
+}
+
 // --- FlixHQ Provider ---
 //
 // TEMP-DISABLED: entire FlixHQ provider commented out until a fix lands.

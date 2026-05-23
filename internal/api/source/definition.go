@@ -68,6 +68,24 @@ var sourceDefs = []SourceDefinition{
 	// 	URLMatchers: []string{"9anime"},
 	// },
 	{
+		Kind:        HiAnime,
+		Explicit:    []string{"HiAnime"},
+		Tags:        []string{"[hianime]"},
+		URLMatchers: []string{"hianimes.se", "hianime.to", "aniwatch.to"},
+	},
+	{
+		Kind:        GogoAnime,
+		Explicit:    []string{"GogoAnime"},
+		Tags:        []string{"[gogoanime]"},
+		URLMatchers: []string{"gogoanime.by", "gogoanime.or.at", "gogoanimes.watch"},
+	},
+	{
+		Kind:        AniNeko,
+		Explicit:    []string{"AniNeko"},
+		Tags:        []string{"[anineko]"},
+		URLMatchers: []string{"anineko.to"},
+	},
+	{
 		Kind:        AllAnime,
 		Explicit:    []string{"AllAnime"},
 		Tags:        []string{"[english]"},

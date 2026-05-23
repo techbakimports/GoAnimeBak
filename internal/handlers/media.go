@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"strings"
 
+	"strconv"
+
 	"charm.land/huh/v2"
 	"github.com/alvarorichard/Goanime/internal/models"
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 // MediaHandler handles media selection and playback operations
@@ -63,23 +64,23 @@ func (mh *MediaHandler) SearchMedia(query string, contentType models.MediaType) 
 
 // SelectMediaType prompts user to select media type
 func (mh *MediaHandler) SelectMediaType() (models.MediaType, error) {
-	items := []string{"Anime", "Movies", "TV Shows", "Search All"}
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select content type: "))
-	if err != nil {
-		return "", err
+	items := []tui.MenuItem{
+		{Label: "Anime", Value: "anime"},
+		{Label: "Movies", Value: "movies"},
+		{Label: "TV Shows", Value: "tv"},
+		{Label: "Search All", Value: "all"},
 	}
-
-	switch idx {
-	case 0:
+	switch tui.RunMenu("Select content type", items) {
+	case "anime":
 		return models.MediaTypeAnime, nil
-	case 1:
+	case "movies":
 		return models.MediaTypeMovie, nil
-	case 2:
+	case "tv":
 		return models.MediaTypeTV, nil
+	case "all":
+		return "", nil
 	default:
-		return "", nil // Search all
+		return "", fmt.Errorf("selection cancelled")
 	}
 }
 
@@ -89,8 +90,8 @@ func (mh *MediaHandler) SelectMedia(results []*models.Anime) (*models.Anime, err
 		return nil, fmt.Errorf("no results to select from")
 	}
 
-	idx, err := tui.Find(results, func(i int) string {
-		r := results[i]
+	items := make([]tui.MenuItem, len(results))
+	for i, r := range results {
 		typeTag := ""
 		switch r.MediaType {
 		case models.MediaTypeMovie:
@@ -104,12 +105,17 @@ func (mh *MediaHandler) SelectMedia(results []*models.Anime) (*models.Anime, err
 		if r.Year != "" {
 			year = fmt.Sprintf(" (%s)", r.Year)
 		}
-		return fmt.Sprintf("%s %s%s - %s", typeTag, r.Name, year, r.Source)
-	}, fuzzyfinder.WithPromptString("Select media: "))
-	if err != nil {
-		return nil, err
+		items[i] = tui.MenuItem{
+			Label: fmt.Sprintf("%s %s%s - %s", typeTag, r.Name, year, r.Source),
+			Value: strconv.Itoa(i),
+		}
 	}
 
+	choice := tui.RunMenu("Select media", items)
+	if choice == "q" || choice == "back" {
+		return nil, fmt.Errorf("selection cancelled")
+	}
+	idx, _ := strconv.Atoi(choice)
 	return results[idx], nil
 }
 
@@ -124,13 +130,15 @@ func (mh *MediaHandler) SelectSeason(mediaID string) (*scraper.FlixHQSeason, err
 		return nil, fmt.Errorf("no seasons found")
 	}
 
-	idx, err := tui.Find(seasons, func(i int) string {
-		return seasons[i].Title
-	}, fuzzyfinder.WithPromptString("Select season: "))
-	if err != nil {
-		return nil, err
+	seasonItems := make([]tui.MenuItem, len(seasons))
+	for i, s := range seasons {
+		seasonItems[i] = tui.MenuItem{Label: s.Title, Value: strconv.Itoa(i)}
 	}
-
+	choice := tui.RunMenu("Select season", seasonItems)
+	if choice == "q" || choice == "back" {
+		return nil, fmt.Errorf("selection cancelled")
+	}
+	idx, _ := strconv.Atoi(choice)
 	return &seasons[idx], nil
 }
 
@@ -145,13 +153,18 @@ func (mh *MediaHandler) SelectEpisode(seasonID string) (*scraper.FlixHQEpisode, 
 		return nil, fmt.Errorf("no episodes found")
 	}
 
-	idx, err := tui.Find(episodes, func(i int) string {
-		return fmt.Sprintf("Episode %d: %s", episodes[i].Number, episodes[i].Title)
-	}, fuzzyfinder.WithPromptString("Select episode: "))
-	if err != nil {
-		return nil, err
+	epItems := make([]tui.MenuItem, len(episodes))
+	for i, ep := range episodes {
+		epItems[i] = tui.MenuItem{
+			Label: fmt.Sprintf("Episode %d: %s", ep.Number, ep.Title),
+			Value: strconv.Itoa(i),
+		}
 	}
-
+	epChoice := tui.RunMenu("Select episode", epItems)
+	if epChoice == "q" || epChoice == "back" {
+		return nil, fmt.Errorf("selection cancelled")
+	}
+	idx, _ := strconv.Atoi(epChoice)
 	return &episodes[idx], nil
 }
 
@@ -206,13 +219,15 @@ func (mh *MediaHandler) SelectQuality(episodeID string, isMovie bool) (scraper.Q
 		return scraper.QualityAuto, nil
 	}
 
-	idx, err := tui.Find(qualities, func(i int) string {
-		return string(qualities[i])
-	}, fuzzyfinder.WithPromptString("Select quality: "))
-	if err != nil {
-		return scraper.QualityAuto, err
+	qualItems := make([]tui.MenuItem, len(qualities))
+	for i, q := range qualities {
+		qualItems[i] = tui.MenuItem{Label: string(q), Value: strconv.Itoa(i)}
 	}
-
+	qChoice := tui.RunMenu("Select quality", qualItems)
+	if qChoice == "q" || qChoice == "back" {
+		return scraper.QualityAuto, fmt.Errorf("selection cancelled")
+	}
+	idx, _ := strconv.Atoi(qChoice)
 	return qualities[idx], nil
 }
 
@@ -359,13 +374,15 @@ func (mh *MediaHandler) selectMovieQuality(qualities []scraper.QualityOption) (s
 		return mh.quality, nil
 	}
 
-	idx, err := tui.Find(qualities, func(i int) string {
-		return qualities[i].Label
-	}, fuzzyfinder.WithPromptString("Select video quality: "))
-	if err != nil {
-		return mh.quality, err
+	mqItems := make([]tui.MenuItem, len(qualities))
+	for i, q := range qualities {
+		mqItems[i] = tui.MenuItem{Label: q.Label, Value: strconv.Itoa(i)}
 	}
-
+	mqChoice := tui.RunMenu("Select video quality", mqItems)
+	if mqChoice == "q" || mqChoice == "back" {
+		return mh.quality, nil
+	}
+	idx, _ := strconv.Atoi(mqChoice)
 	return qualities[idx].Quality, nil
 }
 
@@ -389,17 +406,13 @@ func (mh *MediaHandler) handleAnimePlayback(anime *models.Anime, info *PlaybackI
 		episodeNum = "1"
 	}
 
-	modeItems := []string{"Sub (Subtitled)", "Dub (English Dubbed)"}
-	modeIdx, err := tui.Find(modeItems, func(i int) string {
-		return modeItems[i]
-	}, fuzzyfinder.WithPromptString("Select audio: "))
-	if err != nil {
-		return nil, err
+	modeItems := []tui.MenuItem{
+		{Label: "Sub (Subtitled)", Value: "sub"},
+		{Label: "Dub (English Dubbed)", Value: "dub"},
 	}
-
-	mode := "sub"
-	if modeIdx == 1 {
-		mode = "dub"
+	mode := tui.RunMenu("Select audio", modeItems)
+	if mode == "q" || mode == "back" {
+		return nil, fmt.Errorf("selection cancelled")
 	}
 
 	streamURL, metadata, err := mh.GetAnimeStreamURL(anime, episodeNum, mode)

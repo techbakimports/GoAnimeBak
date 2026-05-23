@@ -21,7 +21,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/upscaler"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 // ErrUserQuit is returned when the user chooses to quit the application
@@ -1072,53 +1071,45 @@ func showPlayerMenu(animeName string, currentEpisodeNum int) (string, error) {
 	// Build title and options based on media type
 	var title string
 
-	type menuOption struct {
-		Label string
-		Value string
-	}
-	var menuItems []menuOption
+	var menuItems []tui.MenuItem
 
 	isMovie := IsCurrentMediaMovie()
 
 	if isMovie {
-		// Movie: show movie name without episode number
 		title = "GoAnime Player Controls"
 		if animeName != "" {
 			title = fmt.Sprintf("Now playing: %s", animeName)
 		}
-		menuItems = []menuOption{
-			{"← Back", "download_options"},
-			{"Replay movie", "next"},
-			{"Change movie", "change"},
-			{"Exit", "quit"},
+		menuItems = []tui.MenuItem{
+			{Label: "← Back", Value: "download_options"},
+			{Label: "Replay movie", Value: "next"},
+			{Label: "Change movie", Value: "change"},
+			{Label: "Exit", Value: "quit"},
 		}
 	} else {
-		// TV series / anime: show episode navigation
 		title = "GoAnime Player Controls"
 		if animeName != "" {
 			title = fmt.Sprintf("Now playing: %s - Episode %d", animeName, currentEpisodeNum)
 		}
-		menuItems = []menuOption{
-			{"← Back", "download_options"},
-			{"Next episode", "next"},
-			{"Previous episode", "previous"},
-			{"Select episode", "select"},
-			{"Change anime", "change"},
-			{"Skip intro", "skip"},
-			{"Exit", "quit"},
+		menuItems = []tui.MenuItem{
+			{Label: "← Back", Value: "download_options"},
+			{Label: "Next episode", Value: "next"},
+			{Label: "Previous episode", Value: "previous"},
+			{Label: "Select episode", Value: "select"},
+			{Label: "Change anime", Value: "change"},
+			{Label: "Skip intro", Value: "skip"},
+			{Label: "Exit", Value: "quit"},
 		}
 	}
 
-	_ = title // title is informational for the prompt string
-	idx, err := tui.Find(menuItems, func(i int) string {
-		return menuItems[i].Label
-	}, fuzzyfinder.WithPromptString(title+": "))
-
-	if err != nil {
-		return "", fmt.Errorf("error showing menu: %w", err)
+	choice := tui.RunMenu(title, menuItems)
+	switch choice {
+	case "q":
+		return "quit", nil
+	case "back":
+		return "download_options", nil
 	}
-
-	return menuItems[idx].Value, nil
+	return choice, nil
 }
 
 // handleUserInput manages user input
@@ -1367,18 +1358,19 @@ func selectAudioTrack(socketPath string) {
 		trackItems = append(trackItems, trackOption{Label: label, ID: id})
 	}
 
-	idx, err := tui.Find(trackItems, func(i int) string {
-		return trackItems[i].Label
-	}, fuzzyfinder.WithPromptString("Select Audio Track: "))
-	if err != nil {
+	audioItems := make([]tui.MenuItem, len(trackItems))
+	for i, t := range trackItems {
+		audioItems[i] = tui.MenuItem{Label: t.Label, Value: strconv.Itoa(t.ID)}
+	}
+	aChoice := tui.RunMenu("Select Audio Track", audioItems)
+	if aChoice == "q" || aChoice == "back" {
 		return
 	}
-
-	selected := trackItems[idx].ID
-	if err := SetAudioTrack(socketPath, selected); err != nil {
+	selectedID, _ := strconv.Atoi(aChoice)
+	if err := SetAudioTrack(socketPath, selectedID); err != nil {
 		fmt.Printf("Error setting audio track: %v\n", err)
 	} else {
-		fmt.Printf("Audio track changed to %d\n", selected)
+		fmt.Printf("Audio track changed to %d\n", selectedID)
 	}
 }
 
@@ -1439,14 +1431,15 @@ func selectSubtitleTrack(socketPath string) {
 		trackItems = append(trackItems, trackOption{Label: label, ID: id})
 	}
 
-	idx, err := tui.Find(trackItems, func(i int) string {
-		return trackItems[i].Label
-	}, fuzzyfinder.WithPromptString("Select Subtitle Track: "))
-	if err != nil {
+	subItems := make([]tui.MenuItem, len(trackItems))
+	for i, t := range trackItems {
+		subItems[i] = tui.MenuItem{Label: t.Label, Value: strconv.Itoa(t.ID)}
+	}
+	sChoice := tui.RunMenu("Select Subtitle Track", subItems)
+	if sChoice == "q" || sChoice == "back" {
 		return
 	}
-
-	selected := trackItems[idx].ID
+	selected, _ := strconv.Atoi(sChoice)
 	if selected == 0 {
 		// Disable subtitles
 		_, _ = mpvSendCommand(socketPath, []any{"set_property", "sid", "no"})

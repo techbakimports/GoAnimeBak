@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 	"golang.org/x/term"
 )
 
@@ -578,15 +578,18 @@ func GetSuperFlixEpisodes(media *models.Anime) ([]models.Episode, error) {
 		seasonLabels = append(seasonLabels, fmt.Sprintf("Season %s (%d episodes)", sn, epCount))
 	}
 
-	// Let user select a season
-	seasonIdx, err := tui.Find(seasonLabels, func(i int) string {
-		return seasonLabels[i]
-	}, fuzzyfinder.WithPromptString("Select season: "))
+	seasonMenuItems := make([]tui.MenuItem, len(seasonLabels))
+	for i, l := range seasonLabels {
+		seasonMenuItems[i] = tui.MenuItem{Label: l, Value: strconv.Itoa(i)}
+	}
+
+	seasonChoice := tui.RunMenu("Select season", seasonMenuItems)
+	if seasonChoice == "q" || seasonChoice == "back" {
+		return nil, ErrBackToSearch
+	}
+	seasonIdx, err := strconv.Atoi(seasonChoice)
 	if err != nil {
-		if errors.Is(err, fuzzyfinder.ErrAbort) {
-			return nil, ErrBackToSearch
-		}
-		return nil, fmt.Errorf("season selection cancelled: %w", err)
+		return nil, ErrBackToSearch
 	}
 
 	selectedSeason := seasonNums[seasonIdx]

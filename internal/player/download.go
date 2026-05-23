@@ -27,7 +27,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/lrstanley/go-ytdlp"
 )
 
@@ -1301,7 +1300,7 @@ func getBestQualityURL(episode models.Episode, anime *models.Anime) (string, err
 // buildQualityMenu sorts sources highest-quality-first and produces stable,
 // unambiguous labels. Sources with Quality == 0 (label digits not parseable)
 // render as "Auto"; same-quality duplicates get "(mirror N)" suffixes so the
-// fuzzyfinder choices are 1:1 with the returned slice and indexing the
+// menu choices are 1:1 with the returned slice and indexing the
 // selection is unambiguous.
 func buildQualityMenu(sources []struct {
 	Quality int
@@ -1344,7 +1343,7 @@ func buildQualityMenu(sources []struct {
 //     always returned the *first* matching source — the user's actual
 //     selection was silently discarded. Indexing directly into the sorted
 //     slice fixes this.
-//  2. Cancelling the prompt (Esc / Ctrl-C → fuzzyfinder.ErrAbort) silently
+//  2. Cancelling the prompt (Esc / Ctrl-C) silently
 //     played whichever source happened to be first. We now propagate
 //     ErrBackRequested so callers can route back to the menu.
 //  3. Sources with an unparseable label rendered as "0p", and the order
@@ -1363,25 +1362,20 @@ func ExtractVideoSourcesWithPrompt(episodeURL string) (string, error) {
 		return sources[0].URL, nil
 	}
 
-	sorted, items := buildQualityMenu(sources)
+	sorted, labels := buildQualityMenu(sources)
 
-	// Use go-fuzzyfinder. A prior huh.Select migration produced a worse
-	// rendering regression in the user's terminal (doubled "0p" suffix on
-	// labels), so the picker stays on fuzzyfinder. The pure-logic fixes
-	// (descending sort, mirror-N disambiguation, ErrAbort routing,
-	// index-based source selection) live in buildQualityMenu and are
-	// pinned by quality_menu_test.go.
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select video quality: "))
-	if err != nil {
-		if errors.Is(err, fuzzyfinder.ErrAbort) {
-			return "", ErrBackRequested
-		}
-		return "", fmt.Errorf("failed to select quality: %w", err)
+	menuItems := make([]tui.MenuItem, len(labels))
+	for i, l := range labels {
+		menuItems[i] = tui.MenuItem{Label: l, Value: strconv.Itoa(i)}
 	}
-	if idx < 0 || idx >= len(sorted) {
-		return "", fmt.Errorf("invalid quality selection: index %d out of range", idx)
+
+	choice := tui.RunMenu("Select video quality", menuItems)
+	if choice == "q" || choice == "back" {
+		return "", ErrBackRequested
+	}
+	idx, err := strconv.Atoi(choice)
+	if err != nil || idx < 0 || idx >= len(sorted) {
+		return "", fmt.Errorf("invalid quality selection")
 	}
 	return sorted[idx].URL, nil
 }
@@ -2122,12 +2116,7 @@ func handleExistingEpisodes(episodes []models.Episode, animeURL string, startNum
 		return nil
 	}
 
-	// Create options for the interactive menu
-	type menuOption struct {
-		Label string
-		Value string
-	}
-	var menuItems []menuOption
+	var menuItems []tui.MenuItem
 	for _, ep := range existingEpisodes {
 		title := fmt.Sprintf("Episode %d", ep.Num)
 		if ep.Title.English != "" {
@@ -2135,22 +2124,12 @@ func handleExistingEpisodes(episodes []models.Episode, animeURL string, startNum
 		} else if ep.Title.Romaji != "" {
 			title = fmt.Sprintf("Episode %d: %s", ep.Num, ep.Title.Romaji)
 		}
-		menuItems = append(menuItems, menuOption{Label: title, Value: strconv.Itoa(ep.Num)})
+		menuItems = append(menuItems, tui.MenuItem{Label: title, Value: strconv.Itoa(ep.Num)})
 	}
+	menuItems = append(menuItems, tui.MenuItem{Label: "Don't watch anything", Value: "exit"})
 
-	// Add option to not watch anything
-	menuItems = append(menuItems, menuOption{Label: "Don't watch anything", Value: "exit"})
-
-	idx, err := tui.Find(menuItems, func(i int) string {
-		return menuItems[i].Label
-	}, fuzzyfinder.WithPromptString("Which episode would you like to watch? "))
-
-	if err != nil {
-		return fmt.Errorf("episode selection error: %w", err)
-	}
-
-	selectedEpisode := menuItems[idx].Value
-	if selectedEpisode == "exit" {
+	selectedEpisode := tui.RunMenu("Which episode would you like to watch?", menuItems)
+	if selectedEpisode == "exit" || selectedEpisode == "back" || selectedEpisode == "q" {
 		fmt.Println("No episode selected.")
 		return ErrUserQuit
 	}
@@ -2206,12 +2185,7 @@ func askAndPlayDownloadedEpisode(episodes []models.Episode, animeURL string, sta
 		return nil
 	}
 
-	// Create options for the interactive menu
-	type menuOption struct {
-		Label string
-		Value string
-	}
-	var menuItems []menuOption
+	var menuItems []tui.MenuItem
 	for _, ep := range downloadedEpisodes {
 		title := fmt.Sprintf("Episode %d", ep.Num)
 		if ep.Title.English != "" {
@@ -2219,22 +2193,12 @@ func askAndPlayDownloadedEpisode(episodes []models.Episode, animeURL string, sta
 		} else if ep.Title.Romaji != "" {
 			title = fmt.Sprintf("Episode %d: %s", ep.Num, ep.Title.Romaji)
 		}
-		menuItems = append(menuItems, menuOption{Label: title, Value: strconv.Itoa(ep.Num)})
+		menuItems = append(menuItems, tui.MenuItem{Label: title, Value: strconv.Itoa(ep.Num)})
 	}
+	menuItems = append(menuItems, tui.MenuItem{Label: "Don't watch anything", Value: "exit"})
 
-	// Add option to not watch anything
-	menuItems = append(menuItems, menuOption{Label: "Don't watch anything", Value: "exit"})
-
-	idx, err := tui.Find(menuItems, func(i int) string {
-		return menuItems[i].Label
-	}, fuzzyfinder.WithPromptString("Which episode would you like to watch? "))
-
-	if err != nil {
-		return fmt.Errorf("episode selection error: %w", err)
-	}
-
-	selectedEpisode := menuItems[idx].Value
-	if selectedEpisode == "exit" {
+	selectedEpisode := tui.RunMenu("Which episode would you like to watch?", menuItems)
+	if selectedEpisode == "exit" || selectedEpisode == "back" || selectedEpisode == "q" {
 		fmt.Println("No episode selected.")
 		return ErrUserQuit
 	}

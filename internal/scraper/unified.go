@@ -36,6 +36,9 @@ const (
 	NineAnimeType // 9animetv.to anime source
 	GoyabuType    // PT-BR anime source
 	SuperFlixType // SuperFlix PT-BR movies/series/animes/doramas
+	HiAnimeType   // hianimes.se — aniwatch.to-compatible AJAX API
+	GogoAnimeType // gogoanime.by / gogoanime.or.at — multi-domain cascade
+	AniNekoType   // anineko.to anime source
 )
 
 // UnifiedScraper provides a common interface for all scrapers
@@ -83,6 +86,9 @@ func NewScraperManager() *ScraperManager {
 		// manager.scrapers[NineAnimeType] = &NineAnimeAdapter{client: NewNineAnimeClient()}
 		manager.scrapers[GoyabuType] = &GoyabuAdapter{client: NewGoyabuClient()}
 		manager.scrapers[SuperFlixType] = &SuperFlixAdapter{client: NewSuperFlixClient()}
+		manager.scrapers[HiAnimeType] = &HiAnimeAdapter{client: NewHiAnimeClient()}
+		manager.scrapers[GogoAnimeType] = &GogoAnimeAdapter{client: NewGogoAnimeClient()}
+		manager.scrapers[AniNekoType] = &AniNekoAdapter{client: NewAniNekoClient()}
 		// TEMP-DISABLED: AnimeDrive scraper temporarily disabled
 		// manager.scrapers[AnimeDriveType] = &AnimeDriveAdapter{client: NewAnimeDriveClient()}
 
@@ -537,6 +543,10 @@ func (sm *ScraperManager) getScraperBaseURL(scraperType ScraperType) string {
 		return SFlixBase
 	case NineAnimeType:
 		return NineAnimeBase
+	case HiAnimeType:
+		return HiAnimeBase
+	case AniNekoType:
+		return AniNekoBase
 	default:
 		return ""
 	}
@@ -566,6 +576,12 @@ func (sm *ScraperManager) getScraperDisplayName(scraperType ScraperType) string 
 		return "Goyabu"
 	case SuperFlixType:
 		return "SuperFlix"
+	case HiAnimeType:
+		return "HiAnime"
+	case GogoAnimeType:
+		return "GogoAnime"
+	case AniNekoType:
+		return "AniNeko"
 	default:
 		return "Desconhecido"
 	}
@@ -590,6 +606,12 @@ func (sm *ScraperManager) getLanguageTag(scraperType ScraperType) string {
 		return "[PT-BR]"
 	case SuperFlixType:
 		return "[PT-BR]"
+	case HiAnimeType:
+		return "[English]"
+	case GogoAnimeType:
+		return "[English]"
+	case AniNekoType:
+		return "[English]"
 	default:
 		return "[Unknown]"
 	}
@@ -1045,6 +1067,70 @@ func (a *SuperFlixAdapter) GetType() ScraperType {
 func (a *SuperFlixAdapter) GetClient() *SuperFlixClient {
 	return a.client
 }
+
+// HiAnimeAdapter adapts HiAnimeClient to UnifiedScraper interface
+type HiAnimeAdapter struct {
+	client *HiAnimeClient
+}
+
+func (a *HiAnimeAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
+	return a.client.SearchAnime(query)
+}
+
+func (a *HiAnimeAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
+	return a.client.GetAnimeEpisodes(animeURL)
+}
+
+func (a *HiAnimeAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
+	// episodeURL stores the episode data-id (same pattern as NineAnime)
+	url, err := a.client.GetEpisodeStreamURL(episodeURL)
+	metadata := map[string]string{"source": "hianime"}
+	return url, metadata, err
+}
+
+func (a *HiAnimeAdapter) GetType() ScraperType { return HiAnimeType }
+
+// GogoAnimeAdapter adapts GogoAnimeClient to UnifiedScraper interface
+type GogoAnimeAdapter struct {
+	client *GogoAnimeClient
+}
+
+func (a *GogoAnimeAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
+	return a.client.SearchAnime(query)
+}
+
+func (a *GogoAnimeAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
+	return a.client.GetAnimeEpisodes(animeURL)
+}
+
+func (a *GogoAnimeAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
+	url, err := a.client.GetEpisodeStreamURL(episodeURL)
+	metadata := map[string]string{"source": "gogoanime"}
+	return url, metadata, err
+}
+
+func (a *GogoAnimeAdapter) GetType() ScraperType { return GogoAnimeType }
+
+// AniNekoAdapter adapts AniNekoClient to UnifiedScraper interface
+type AniNekoAdapter struct {
+	client *AniNekoClient
+}
+
+func (a *AniNekoAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
+	return a.client.SearchAnime(query)
+}
+
+func (a *AniNekoAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
+	return a.client.GetAnimeEpisodes(animeURL)
+}
+
+func (a *AniNekoAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
+	url, err := a.client.GetEpisodeStreamURL(episodeURL)
+	metadata := map[string]string{"source": "anineko"}
+	return url, metadata, err
+}
+
+func (a *AniNekoAdapter) GetType() ScraperType { return AniNekoType }
 
 // NewSuperFlixAdapterWithClient creates a SuperFlixAdapter with a pre-configured client.
 // Useful for testing with mock servers.

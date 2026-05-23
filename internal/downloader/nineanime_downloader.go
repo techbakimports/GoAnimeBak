@@ -24,7 +24,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/lrstanley/go-ytdlp"
 )
 
@@ -309,54 +308,36 @@ func (d *NineAnimeDownloader) promptSubtitleLanguage(tracks []scraper.NineAnimeS
 		return ""
 	}
 
-	// Build options: each language + "All" + "None"
-	var items []string
+	fmt.Printf("\n%d subtitle language(s) available:\n", len(tracks))
+
+	subItems := make([]tui.MenuItem, 0, len(tracks)+2)
 	for _, t := range tracks {
 		label := t.Label
 		if t.Default {
 			label += " (default)"
 		}
-		items = append(items, label)
+		subItems = append(subItems, tui.MenuItem{Label: label, Value: t.Label})
 	}
-	items = append(items, "All (download all subtitles)")
-	items = append(items, "None (skip subtitles)")
+	subItems = append(subItems, tui.MenuItem{Label: "All (download all subtitles)", Value: "__all__"})
+	subItems = append(subItems, tui.MenuItem{Label: "None (skip subtitles)", Value: "__none__"})
 
-	fmt.Printf("\n%d subtitle language(s) available:\n", len(tracks))
-
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select subtitle language: "))
 	d.subLangResolved = true
+	choice := tui.RunMenu("Select subtitle language", subItems)
 
-	if err != nil {
-		// On error (Ctrl+C, etc.) default to the track marked as default, or skip
-		for _, t := range tracks {
-			if t.Default {
-				d.chosenSubLang = t.Label
-				fmt.Printf("Defaulting to subtitle: %s\n", t.Label)
-				return t.Label
-			}
-		}
-		d.chosenSubLang = ""
-		return ""
-	}
-
-	if idx == len(items)-1 {
-		// "None" selected
+	switch choice {
+	case "__none__", "back", "q":
 		d.chosenSubLang = ""
 		fmt.Println("Subtitles: disabled")
 		return ""
-	}
-	if idx == len(items)-2 {
-		// "All" selected
+	case "__all__":
 		d.chosenSubLang = "__all__"
 		fmt.Println("Subtitles: downloading all languages")
 		return "__all__"
+	default:
+		d.chosenSubLang = choice
+		fmt.Printf("Subtitles: %s\n", choice)
+		return choice
 	}
-
-	d.chosenSubLang = tracks[idx].Label
-	fmt.Printf("Subtitles: %s\n", d.chosenSubLang)
-	return d.chosenSubLang
 }
 
 // downloadSubtitles downloads subtitle tracks alongside the video file,

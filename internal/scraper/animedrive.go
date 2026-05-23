@@ -17,7 +17,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/models"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 const (
@@ -147,41 +146,26 @@ func SelectServerWithFuzzyFinder(options []VideoOption) (*VideoOption, error) {
 		return &options[0], nil
 	}
 
-	// Create display list with back option first
-	backOption := "← Back"
-	displayList := make([]string, len(options)+1)
-	displayList[0] = backOption
+	items := make([]tui.MenuItem, len(options)+1)
+	items[0] = tui.MenuItem{Label: "← Back", Value: "back"}
 	for i, opt := range options {
-		if opt.Label != "" {
-			displayList[i+1] = opt.Label
-		} else {
-			displayList[i+1] = fmt.Sprintf("%s (%s)", opt.Quality.String(), opt.ServerName)
+		label := opt.Label
+		if label == "" {
+			label = fmt.Sprintf("%s (%s)", opt.Quality.String(), opt.ServerName)
 		}
+		items[i+1] = tui.MenuItem{Label: label, Value: strconv.Itoa(i)}
 	}
 
-	idx, err := tui.Find(
-		displayList,
-		func(i int) string {
-			return displayList[i]
-		},
-		fuzzyfinder.WithPromptString("Select the server: "),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to select server: %w", err)
-	}
-
-	if idx < 0 || idx >= len(displayList) {
-		return nil, errors.New("invalid server selection")
-	}
-
-	// Check if back was selected
-	if idx == 0 {
+	choice := tui.RunMenu("Select the server", items)
+	if choice == "back" || choice == "q" {
 		return nil, ErrBackRequested
 	}
 
-	// Adjust index for options (subtract 1 for the back option)
-	optionIdx := idx - 1
-	return &options[optionIdx], nil
+	idx, err := strconv.Atoi(choice)
+	if err != nil || idx < 0 || idx >= len(options) {
+		return nil, errors.New("invalid server selection")
+	}
+	return &options[idx], nil
 }
 
 // AnimeDriveGenre represents a genre from AnimeDrive

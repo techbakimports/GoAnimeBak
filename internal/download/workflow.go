@@ -19,7 +19,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 // HandleDownloadRequest processes a download request from command line
@@ -484,9 +483,8 @@ func selectMovieFromResults(results []*scraper.FlixHQMedia, preferMovie, preferT
 		return filtered[0], nil
 	}
 
-	// Prepare display items
-	var items []string
-	for _, r := range filtered {
+	mediaItems := make([]tui.MenuItem, len(filtered))
+	for i, r := range filtered {
 		typeTag := "[Movie]"
 		if r.Type == scraper.MediaTypeTV {
 			typeTag = "[TV]"
@@ -499,16 +497,17 @@ func selectMovieFromResults(results []*scraper.FlixHQMedia, preferMovie, preferT
 		if r.Source != "" {
 			source = fmt.Sprintf(" - %s", r.Source)
 		}
-		items = append(items, fmt.Sprintf("%s %s%s%s", typeTag, r.Title, year, source))
+		mediaItems[i] = tui.MenuItem{
+			Label: fmt.Sprintf("%s %s%s%s", typeTag, r.Title, year, source),
+			Value: strconv.Itoa(i),
+		}
 	}
 
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select movie/TV show to download: "))
-	if err != nil {
-		return nil, err
+	choice := tui.RunMenu("Select movie/TV show to download", mediaItems)
+	if choice == "q" || choice == "back" {
+		return nil, fmt.Errorf("selection cancelled")
 	}
-
+	idx, _ := strconv.Atoi(choice)
 	return filtered[idx], nil
 }
 
@@ -527,19 +526,15 @@ func selectSeason(mm *scraper.MediaManager, mediaID string) (int, error) {
 		return 1, nil
 	}
 
-	var items []string
-	for _, s := range seasons {
-		items = append(items, s.Title)
+	seasonItems := make([]tui.MenuItem, len(seasons))
+	for i, s := range seasons {
+		seasonItems[i] = tui.MenuItem{Label: s.Title, Value: strconv.Itoa(i + 1)}
 	}
-
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select season: "))
-	if err != nil {
-		return 0, err
+	choice := tui.RunMenu("Select season", seasonItems)
+	if choice == "q" || choice == "back" {
+		return 0, fmt.Errorf("selection cancelled")
 	}
-
-	return idx + 1, nil
+	return strconv.Atoi(choice)
 }
 
 // selectEpisode presents a selection UI for TV episodes
@@ -563,19 +558,18 @@ func selectEpisode(mm *scraper.MediaManager, mediaID string, seasonNum int) (int
 		return 0, fmt.Errorf("no episodes found")
 	}
 
-	var items []string
-	for _, e := range episodes {
-		items = append(items, fmt.Sprintf("Episode %d: %s", e.Number, e.Title))
+	epItems := make([]tui.MenuItem, len(episodes))
+	for i, e := range episodes {
+		epItems[i] = tui.MenuItem{
+			Label: fmt.Sprintf("Episode %d: %s", e.Number, e.Title),
+			Value: strconv.Itoa(i + 1),
+		}
 	}
-
-	idx, err := tui.Find(items, func(i int) string {
-		return items[i]
-	}, fuzzyfinder.WithPromptString("Select episode: "))
-	if err != nil {
-		return 0, err
+	epChoice := tui.RunMenu("Select episode", epItems)
+	if epChoice == "q" || epChoice == "back" {
+		return 0, fmt.Errorf("selection cancelled")
 	}
-
-	return idx + 1, nil
+	return strconv.Atoi(epChoice)
 }
 
 // getSeasonEpisodeCount returns the number of episodes in a given season
