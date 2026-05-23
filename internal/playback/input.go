@@ -12,19 +12,19 @@ func GetUserInput(isMovie ...bool) string {
 	var items []tui.MenuItem
 	if movie {
 		items = []tui.MenuItem{
-			{"Repetir filme", "n"},
-			{"Mudar filme", "c"},
-			{"← Voltar", "back"},
-			{"Sair", "q"},
+			{Label: "Repetir filme", Value: "n"},
+			{Label: "Mudar filme", Value: "c"},
+			{Label: "← Voltar", Value: "back"},
+			{Label: "Sair", Value: "q"},
 		}
 	} else {
 		items = []tui.MenuItem{
-			{"Próximo episódio", "n"},
-			{"Episódio anterior", "p"},
-			{"Selecionar episódio", "e"},
-			{"Mudar anime", "c"},
-			{"← Voltar", "back"},
-			{"Sair", "q"},
+			{Label: "Próximo episódio", Value: "n"},
+			{Label: "Episódio anterior", Value: "p"},
+			{Label: "Selecionar episódio", Value: "e"},
+			{Label: "Mudar anime", Value: "c"},
+			{Label: "← Voltar", Value: "back"},
+			{Label: "Sair", Value: "q"},
 		}
 	}
 

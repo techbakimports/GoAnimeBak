@@ -181,6 +181,11 @@ func SelectEpisodeWithFuzzy(episodes []models.Episode) (string, string, int, err
 	return url, numStr, epNum, nil
 }
 
+// episodeFallback is the function called when FindEpisodeByNumber cannot
+// locate the requested episode number.  It defaults to the interactive
+// Bubble Tea selector but can be overridden in tests to avoid opening a TUI.
+var episodeFallback = SelectEpisodeWithFuzzy
+
 func FindEpisodeByNumber(episodes []models.Episode, num int) (string, string, int, error) {
 	for _, ep := range episodes {
 		if epNum, err := strconv.Atoi(player.ExtractEpisodeNumber(ep.Number)); err == nil && epNum == num {
@@ -188,5 +193,5 @@ func FindEpisodeByNumber(episodes []models.Episode, num int) (string, string, in
 		}
 	}
 	log.Printf("Warning: Episode number %d not found. Re-selecting.", num)
-	return SelectEpisodeWithFuzzy(episodes)
+	return episodeFallback(episodes)
 }

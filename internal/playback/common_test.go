@@ -1,7 +1,7 @@
 package playback
 
 import (
-	"os"
+	"fmt"
 	"testing"
 
 	"github.com/alvarorichard/Goanime/internal/models"
@@ -18,23 +18,23 @@ func TestSelectEpisodeWithFuzzy_EmptyList(t *testing.T) {
 }
 
 // TestFindEpisodeByNumber_NotFound verifies that searching for a non-existent
-// episode number returns an error instead of fataling.
+// episode number delegates to the fallback selector and propagates its error
+// instead of calling os.Exit.
 func TestFindEpisodeByNumber_NotFound(t *testing.T) {
-	// This test falls back to SelectEpisodeWithFuzzy which opens an interactive
-	// fuzzy finder (tcell-based TUI). On CI there is no TTY, so the fuzzy finder
-	// either panics (Windows) or hangs indefinitely waiting for terminal input.
-	if testing.Short() || os.Getenv("CI") != "" {
-		t.Skip("Skipping interactive fuzzy-finder test in CI/short mode (no TTY available)")
+	// Stub out the interactive fallback so the test never opens a TUI.
+	orig := episodeFallback
+	episodeFallback = func(_ []models.Episode) (string, string, int, error) {
+		return "", "", 0, fmt.Errorf("episode not found (stub fallback)")
 	}
+	defer func() { episodeFallback = orig }()
 
 	episodes := []models.Episode{
 		{URL: "https://example.com/ep1", Number: "1"},
 		{URL: "https://example.com/ep2", Number: "2"},
 	}
 
-	// Episode 999 doesn't exist — FindEpisodeByNumber falls back to
-	// SelectEpisodeWithFuzzy which will fail on non-interactive env.
-	// The important thing is it returns an error, not os.Exit.
+	// Episode 999 doesn't exist — FindEpisodeByNumber should call the
+	// fallback, which returns our stub error.
 	_, _, _, err := FindEpisodeByNumber(episodes, 999)
 
 	assert.Error(t, err, "expected error for non-existent episode number")
