@@ -70,6 +70,28 @@ func (m episodeListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
 			}
+		case "pgup":
+			page := m.height - 12
+			if page < 5 {
+				page = 5
+			}
+			m.cursor -= page
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+		case "pgdown":
+			page := m.height - 12
+			if page < 5 {
+				page = 5
+			}
+			m.cursor += page
+			if m.cursor > len(m.filtered)-1 {
+				m.cursor = len(m.filtered) - 1
+			}
+		case "home":
+			m.cursor = 0
+		case "end":
+			m.cursor = len(m.filtered) - 1
 		case "enter":
 			if len(m.filtered) > 0 {
 				sel := m.filtered[m.cursor]
@@ -109,9 +131,9 @@ func (m episodeListModel) View() tea.View {
 	if w <= 0 {
 		w = 80
 	}
-	inner := w - 4
-	if inner < 50 {
-		inner = 50
+	inner := w - 6
+	if inner < 40 {
+		inner = 40
 	}
 
 	maxRows := m.height - 12
@@ -175,13 +197,18 @@ func (m episodeListModel) View() tea.View {
 		promptStyle.Render("█") + "\n")
 	body.WriteString(divider + "\n")
 
-	start := 0
-	if m.cursor >= maxRows {
-		start = m.cursor - maxRows + 1
+	half := maxRows / 2
+	start := m.cursor - half
+	if start < 0 {
+		start = 0
 	}
 	end := start + maxRows
 	if end > len(m.filtered) {
 		end = len(m.filtered)
+		start = end - maxRows
+		if start < 0 {
+			start = 0
+		}
 	}
 
 	if len(m.filtered) == 0 {
@@ -191,13 +218,13 @@ func (m episodeListModel) View() tea.View {
 			e := m.filtered[i]
 			switch {
 			case i == m.cursor && e.isBack:
-				body.WriteString(selStyle.Render(" ▶ " + e.label))
+				body.WriteString(selStyle.Render(truncateLine(" ▶ "+e.label, inner)))
 			case i == m.cursor:
-				body.WriteString(selStyle.Render(" ▶ " + e.label))
+				body.WriteString(selStyle.Render(truncateLine(" ▶ "+e.label, inner)))
 			case e.isBack:
-				body.WriteString(backStyle.Render("   " + e.label))
+				body.WriteString(backStyle.Render(truncateLine("   "+e.label, inner)))
 			default:
-				body.WriteString(normStyle.Render("   " + e.label))
+				body.WriteString(normStyle.Render(truncateLine("   "+e.label, inner)))
 			}
 			body.WriteString("\n")
 		}

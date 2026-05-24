@@ -72,7 +72,7 @@ func (m menuModel) View() tea.View {
 	if w <= 0 {
 		w = 60
 	}
-	inner := w - 4
+	inner := w - 6
 	if inner < 40 {
 		inner = 40
 	}

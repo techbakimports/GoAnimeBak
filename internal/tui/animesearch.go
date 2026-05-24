@@ -69,6 +69,28 @@ func (m animeSearchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
 			}
+		case "pgup":
+			page := m.height - 12
+			if page < 5 {
+				page = 5
+			}
+			m.cursor -= page
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+		case "pgdown":
+			page := m.height - 12
+			if page < 5 {
+				page = 5
+			}
+			m.cursor += page
+			if m.cursor > len(m.filtered)-1 {
+				m.cursor = len(m.filtered) - 1
+			}
+		case "home":
+			m.cursor = 0
+		case "end":
+			m.cursor = len(m.filtered) - 1
 		case "enter":
 			if len(m.filtered) > 0 {
 				sel := m.filtered[m.cursor]
@@ -103,15 +125,28 @@ func (m animeSearchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m animeSearchModel) sourceTag(a *models.Anime) string {
+func (m animeSearchModel) sourceTagPlain(a *models.Anime) string {
 	switch a.Source {
 	case "AnimeFire", "Goyabu", "SuperFlix":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Render(" [PT-BR]")
+		return " [PT-BR]"
 	case "AllAnime":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(" [EN/JP]")
+		return " [EN/JP]"
 	default:
 		return ""
 	}
+}
+
+func truncateLine(s string, maxWidth int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", "")
+	runes := []rune(s)
+	if len(runes) <= maxWidth {
+		return s
+	}
+	if maxWidth > 3 {
+		return string(runes[:maxWidth-3]) + "..."
+	}
+	return string(runes[:maxWidth])
 }
 
 func (m animeSearchModel) View() tea.View {
@@ -119,9 +154,9 @@ func (m animeSearchModel) View() tea.View {
 	if w <= 0 {
 		w = 80
 	}
-	inner := w - 4
-	if inner < 50 {
-		inner = 50
+	inner := w - 6
+	if inner < 40 {
+		inner = 40
 	}
 
 	maxRows := m.height - 12
@@ -185,13 +220,18 @@ func (m animeSearchModel) View() tea.View {
 		promptStyle.Render("█") + "\n")
 	body.WriteString(divider + "\n")
 
-	start := 0
-	if m.cursor >= maxRows {
-		start = m.cursor - maxRows + 1
+	half := maxRows / 2
+	start := m.cursor - half
+	if start < 0 {
+		start = 0
 	}
 	end := start + maxRows
 	if end > len(m.filtered) {
 		end = len(m.filtered)
+		start = end - maxRows
+		if start < 0 {
+			start = 0
+		}
 	}
 
 	if len(m.filtered) == 0 {
@@ -201,16 +241,15 @@ func (m animeSearchModel) View() tea.View {
 			e := m.filtered[i]
 			switch {
 			case i == m.cursor && e.isBack:
-				body.WriteString(selStyle.Render(" ▶ " + e.label))
+				body.WriteString(selStyle.Render(truncateLine(" ▶ "+e.label, inner)))
 			case i == m.cursor:
-				tag := m.sourceTag(e.anime)
-				line := " ▶ " + e.label
-				body.WriteString(selStyle.Render(line) + tag)
+				tag := m.sourceTagPlain(e.anime)
+				body.WriteString(selStyle.Render(truncateLine(" ▶ "+e.label+tag, inner)))
 			case e.isBack:
-				body.WriteString(backStyle.Render("   " + e.label))
+				body.WriteString(backStyle.Render(truncateLine("   "+e.label, inner)))
 			default:
-				tag := m.sourceTag(e.anime)
-				body.WriteString(normStyle.Render("   "+e.label) + tag)
+				tag := m.sourceTagPlain(e.anime)
+				body.WriteString(normStyle.Render(truncateLine("   "+e.label+tag, inner)))
 			}
 			body.WriteString("\n")
 		}

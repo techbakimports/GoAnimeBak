@@ -155,9 +155,9 @@ func (m dashboardModel) View() tea.View {
 	if w <= 0 {
 		w = 80
 	}
-	inner := w - 4
-	if inner < 50 {
-		inner = 50
+	inner := w - 6
+	if inner < 40 {
+		inner = 40
 	}
 
 	borderStyle := lipgloss.NewStyle().
