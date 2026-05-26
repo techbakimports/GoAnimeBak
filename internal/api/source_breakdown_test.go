@@ -39,11 +39,6 @@ import (
 // strings.Contains is byte-exact in Go, the AnimeFire counter was always zero
 // even when the search returned dozens of AnimeFire results — making the
 // "Source breakdown" diagnostic line lie to operators.
-//
-// This test reproduces the buggy comparison in isolation. The expectation
-// matches the broken behaviour so that if anyone ever "fixes" the bug by
-// hand without updating both the production code AND this regression test,
-// the failure makes the intent obvious.
 func TestSourceBreakdown_LegacyCaseSensitiveBug(t *testing.T) {
 	source := "Animefire.io"
 
@@ -68,10 +63,7 @@ func TestCountSourceBreakdown_AnimeFireCaseInsensitive(t *testing.T) {
 		{Source: "animefire"},
 		{Source: "AllAnime"},
 		{Source: "Goyabu"},
-		{Source: "FlixHQ"},
-		{Source: "9Anime"},
 		{Source: "SuperFlix"},
-		{Source: "AnimeDrive"},
 	}
 
 	got := countSourceBreakdown(animes)
@@ -79,10 +71,7 @@ func TestCountSourceBreakdown_AnimeFireCaseInsensitive(t *testing.T) {
 	assert.Equal(t, 5, got.AnimeFire, "all AnimeFire spellings must be counted")
 	assert.Equal(t, 1, got.AllAnime)
 	assert.Equal(t, 1, got.Goyabu)
-	assert.Equal(t, 1, got.FlixHQ)
-	assert.Equal(t, 1, got.NineAnime)
 	assert.Equal(t, 1, got.SuperFlix)
-	assert.Equal(t, 1, got.AnimeDrive)
 }
 
 // TestCountSourceBreakdown_RealisticPayload mirrors the user-reported log:
@@ -105,8 +94,5 @@ func TestCountSourceBreakdown_RealisticPayload(t *testing.T) {
 	assert.Equal(t, 10, got.AnimeFire, "AnimeFire breakdown must equal what the scraper returned")
 	assert.Equal(t, 5, got.AllAnime)
 	assert.Equal(t, 8, got.Goyabu, "Goyabu must appear in the breakdown")
-	assert.Equal(t, 0, got.AnimeDrive)
-	assert.Equal(t, 0, got.FlixHQ)
-	assert.Equal(t, 0, got.NineAnime)
 	assert.Equal(t, 0, got.SuperFlix)
 }

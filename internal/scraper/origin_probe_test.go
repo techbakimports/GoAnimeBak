@@ -174,15 +174,11 @@ func TestEnrichTimeoutWithProbe_NilErrorIsNoop(t *testing.T) {
 	assert.NoError(t, got, "must not synthesise an error from nil")
 }
 
-func TestScraperManager_BaseURLForFlixHQFamily(t *testing.T) {
-	// Pin the source→URL mapping. If anyone renames a base URL constant
-	// without updating the lookup, this test fails and signals the probe
-	// has gone blind for that source.
+func TestScraperManager_BaseURLMapping(t *testing.T) {
 	sm := &ScraperManager{}
 
-	assert.Equal(t, FlixHQBase, sm.getScraperBaseURL(FlixHQType))
-	assert.Equal(t, SFlixBase, sm.getScraperBaseURL(SFlixType))
-	assert.Equal(t, NineAnimeBase, sm.getScraperBaseURL(NineAnimeType))
+	assert.Equal(t, HiAnimeBase, sm.getScraperBaseURL(HiAnimeType))
+	assert.Equal(t, AniNekoBase, sm.getScraperBaseURL(AniNekoType))
 
 	assert.Empty(t, sm.getScraperBaseURL(AllAnimeType),
 		"AllAnime uses a GraphQL endpoint, not a probable HTML root — "+

@@ -27,8 +27,8 @@ func HandleMovie(anime *models.Anime, episodes []models.Episode, discordEnabled 
 		anime.Episodes = []models.Episode{episodes[0]}
 		animeMutex.Unlock()
 
-		// Only fetch movie data from Jikan API for anime content (not FlixHQ movies/TV)
-		// FlixHQ content already has metadata from TMDB/OMDb
+		// Only fetch movie data from Jikan API for anime content (not movie/TV sources)
+		// Movie/TV content already has metadata from TMDB/OMDb
 		if !anime.IsMovieOrTV() && anime.MalID > 0 {
 			if err := api.GetMovieData(anime.MalID, anime); err != nil {
 				log.Printf("Error fetching movie/OVA data: %v", err)

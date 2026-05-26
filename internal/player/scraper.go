@@ -322,36 +322,7 @@ func GetVideoURLForEpisodeEnhanced(episode *models.Episode, anime *models.Anime)
 		return "", fmt.Errorf("cannot resolve stream without anime context for episode %s; missing anime identifier", episode.Number)
 	}
 
-	// Try AnimeDrive enhanced navigation if applicable
-	if isAnimeDriveSourcePlayer(anime) {
-		streamURL, err := api.GetEpisodeStreamURL(episode, anime, util.GlobalQuality)
-		if err == nil {
-			// Validate the URL is a playable video, not an iframe/embed page
-			if isPlayableVideoURL(streamURL) {
-				return streamURL, nil
-			}
-			// Try to extract actual video from intermediate URL
-			if needsVideoExtraction(streamURL) {
-				resolved, resolveErr := extractActualVideoURL(streamURL)
-				if resolveErr == nil && resolved != "" {
-					return resolved, nil
-				}
-			}
-			util.Debug("AnimeDrive returned non-playable URL", "url", streamURL)
-			return "", fmt.Errorf("AnimeDrive returned non-playable URL: %s", streamURL)
-		}
-		// Check if user requested to go back from server selection
-		if errors.Is(err, scraper.ErrBackRequested) {
-			return "", ErrBackToEpisodeSelection
-		}
-		// For AnimeDrive, return the error instead of trying legacy method
-		return "", fmt.Errorf("failed to get AnimeDrive stream URL: %w", err)
-	}
-
-	// Movie/TV routing: SuperFlix and FlixHQ both flow through the enhanced API,
-	// which dispatches by anime.Source internally. Label logs by the actual
-	// source so triage isn't misled into thinking SuperFlix failures came from
-	// FlixHQ.
+	// Movie/TV routing: SuperFlix flows through the enhanced API.
 	if isMovieOrTVSourcePlayer(anime) {
 		sourceLabel := anime.Source
 		if sourceLabel == "" {
@@ -431,39 +402,14 @@ func isAllAnimeSourcePlayer(anime *models.Anime) bool {
 	return false
 }
 
-// Helper function to check if anime is from AnimeDrive source (player module)
-func isAnimeDriveSourcePlayer(anime *models.Anime) bool {
-	if anime == nil {
-		return false
-	}
-	if anime.Source == "AnimeDrive" {
-		return true
-	}
-	if strings.Contains(anime.Name, "[AnimeDrive]") {
-		return true
-	}
-	if strings.Contains(anime.URL, "animesdrive") {
-		return true
-	}
-	return false
-}
-
-// Helper function to check if anime is from FlixHQ source (player module)
-// isMovieOrTVSourcePlayer routes any movie/TV content through the enhanced API,
-// which dispatches by anime.Source (SuperFlix, FlixHQ, ...). Despite the legacy
-// name, this is not FlixHQ-specific — SuperFlix selections also reach this
-// branch because their MediaType is MediaTypeMovie/MediaTypeTV.
 func isMovieOrTVSourcePlayer(anime *models.Anime) bool {
 	if anime == nil {
 		return false
 	}
-	if anime.Source == "FlixHQ" || anime.Source == "SuperFlix" {
+	if anime.Source == "SuperFlix" {
 		return true
 	}
 	if anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV {
-		return true
-	}
-	if strings.Contains(anime.URL, "flixhq") {
 		return true
 	}
 	return false

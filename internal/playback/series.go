@@ -94,7 +94,7 @@ func HandleSeries(anime *models.Anime, episodes []models.Episode, totalEpisodes 
 			episodes = newEpisodes
 
 			// Check if new anime is a series using media type first, then episode count as fallback
-			// This avoids re-fetching episodes which would cause duplicate season selection for FlixHQ
+			// This avoids re-fetching episodes which would cause duplicate season selection
 			newTotalEpisodes := len(newEpisodes)
 			totalEpisodes = newTotalEpisodes
 			series := !newAnime.IsMovie() && newTotalEpisodes > 1
@@ -145,7 +145,7 @@ func HandleSeries(anime *models.Anime, episodes []models.Episode, totalEpisodes 
 			episodes = newEpisodes
 
 			// Check if new anime is a series using media type first, then episode count as fallback
-			// This avoids re-fetching episodes which would cause duplicate season selection for FlixHQ
+			// This avoids re-fetching episodes which would cause duplicate season selection
 			newTotalEpisodes := len(newEpisodes)
 			totalEpisodes = newTotalEpisodes
 			series := !newAnime.IsMovie() && newTotalEpisodes > 1

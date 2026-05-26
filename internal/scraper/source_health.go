@@ -37,7 +37,7 @@ type SourceHealthResult struct {
 // DefaultHealthCheckQuery returns a stable query expected to produce results.
 func DefaultHealthCheckQuery(source ScraperType) string {
 	switch source {
-	case FlixHQType, SFlixType, SuperFlixType:
+	case SuperFlixType:
 		return "dexter"
 	default:
 		return "naruto"

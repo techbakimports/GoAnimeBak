@@ -404,18 +404,14 @@ func TestSearchAnime_SlowScraperAlwaysIncluded(t *testing.T) {
 	fast3.scraperType = GoyabuType
 	manager.scrapers[GoyabuType] = fast3
 
-	fast4 := fast("FlixHQ Hit")
-	fast4.scraperType = FlixHQType
-	manager.scrapers[FlixHQType] = fast4
-
 	slowSuperFlix.scraperType = SuperFlixType
 	manager.scrapers[SuperFlixType] = slowSuperFlix
 
 	results, err := manager.SearchAnime("black clover", nil)
 	require.NoError(t, err)
 
-	// ALL 5 sources must be present — the slow scraper must NOT be dropped.
-	assert.Len(t, results, 5, "All 5 scraper results must be included")
+	// ALL 4 sources must be present — the slow scraper must NOT be dropped.
+	assert.Len(t, results, 4, "All 4 scraper results must be included")
 
 	// Verify SuperFlix result is present
 	hasSuperFlix := false

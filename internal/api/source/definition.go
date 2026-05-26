@@ -24,12 +24,6 @@ type SourceDefinition struct {
 // because "animesdrive" contains "anime").
 var sourceDefs = []SourceDefinition{
 	{
-		Kind:        AnimeDrive,
-		Explicit:    []string{"AnimeDrive"},
-		Tags:        []string{"[animedrive]"},
-		URLMatchers: []string{"animesdrive"},
-	},
-	{
 		Kind:        AnimeFire,
 		Explicit:    []string{"Animefire.io", "AnimeFire"},
 		Tags:        []string{"[animefire]"},
@@ -47,26 +41,6 @@ var sourceDefs = []SourceDefinition{
 		Tags:        []string{"[superflix]"},
 		URLMatchers: []string{"superflix"},
 	},
-	// TEMP-DISABLED: FlixHQ, SFlix, and 9Anime source defs commented out until a fix lands.
-	// {
-	// 	Kind:        FlixHQ,
-	// 	Explicit:    []string{"FlixHQ"},
-	// 	Tags:        []string{"[flixhq]", "[movie]", "[tv]"},
-	// 	URLMatchers: []string{"flixhq"},
-	// 	MediaTypes:  []models.MediaType{models.MediaTypeMovie, models.MediaTypeTV},
-	// },
-	// {
-	// 	Kind:        SFlix,
-	// 	Explicit:    []string{"SFlix"},
-	// 	Tags:        []string{"[sflix]"},
-	// 	URLMatchers: []string{"sflix"},
-	// },
-	// {
-	// 	Kind:        NineAnime,
-	// 	Explicit:    []string{"9Anime"},
-	// 	Tags:        []string{"[9anime]", "[multilanguage]"},
-	// 	URLMatchers: []string{"9anime"},
-	// },
 	{
 		Kind:        HiAnime,
 		Explicit:    []string{"HiAnime"},

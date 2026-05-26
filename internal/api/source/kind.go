@@ -9,14 +9,10 @@ import "github.com/alvarorichard/Goanime/internal/scraper"
 type SourceKind string
 
 const (
-	AllAnime   SourceKind = "AllAnime"
-	AnimeFire  SourceKind = "AnimeFire"
-	AnimeDrive SourceKind = "AnimeDrive"
-	FlixHQ     SourceKind = "FlixHQ"
-	SFlix      SourceKind = "SFlix"
-	NineAnime  SourceKind = "9Anime"
-	Goyabu     SourceKind = "Goyabu"
-	SuperFlix  SourceKind = "SuperFlix"
+	AllAnime  SourceKind = "AllAnime"
+	AnimeFire SourceKind = "AnimeFire"
+	Goyabu    SourceKind = "Goyabu"
+	SuperFlix SourceKind = "SuperFlix"
 
 	HiAnime   SourceKind = "HiAnime"
 	GogoAnime SourceKind = "GogoAnime"
@@ -35,15 +31,11 @@ func ScraperTypeFor(kind SourceKind) (scraper.ScraperType, bool) {
 }
 
 var scraperTypeMap = map[SourceKind]scraper.ScraperType{
-	AllAnime:   scraper.AllAnimeType,
-	AnimeFire:  scraper.AnimefireType,
-	AnimeDrive: scraper.AnimeDriveType,
-	FlixHQ:     scraper.FlixHQType,
-	SFlix:      scraper.SFlixType,
-	NineAnime:  scraper.NineAnimeType,
-	Goyabu:     scraper.GoyabuType,
-	SuperFlix:  scraper.SuperFlixType,
-	HiAnime:    scraper.HiAnimeType,
-	GogoAnime:  scraper.GogoAnimeType,
-	AniNeko:    scraper.AniNekoType,
+	AllAnime:  scraper.AllAnimeType,
+	AnimeFire: scraper.AnimefireType,
+	Goyabu:    scraper.GoyabuType,
+	SuperFlix: scraper.SuperFlixType,
+	HiAnime:   scraper.HiAnimeType,
+	GogoAnime: scraper.GogoAnimeType,
+	AniNeko:   scraper.AniNekoType,
 }
