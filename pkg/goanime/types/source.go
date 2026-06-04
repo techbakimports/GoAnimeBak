@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alvarorichard/Goanime/internal/scraper"
 )
@@ -14,6 +15,16 @@ const (
 	SourceAllAnime Source = iota
 	// SourceAnimeFire represents the AnimeFire source
 	SourceAnimeFire
+	// SourceGoyabu represents the Goyabu source (PT-BR)
+	SourceGoyabu
+	// SourceSuperFlix represents the SuperFlix source (PT-BR movies/series/anime)
+	SourceSuperFlix
+	// SourceHiAnime represents the HiAnime source (English)
+	SourceHiAnime
+	// SourceGogoAnime represents the GogoAnime source (English)
+	SourceGogoAnime
+	// SourceAniNeko represents the AniNeko source (English)
+	SourceAniNeko
 )
 
 // String returns the string representation of the source
@@ -23,6 +34,16 @@ func (s Source) String() string {
 		return "AllAnime"
 	case SourceAnimeFire:
 		return "AnimeFire"
+	case SourceGoyabu:
+		return "Goyabu"
+	case SourceSuperFlix:
+		return "SuperFlix"
+	case SourceHiAnime:
+		return "HiAnime"
+	case SourceGogoAnime:
+		return "GogoAnime"
+	case SourceAniNeko:
+		return "AniNeko"
 	default:
 		return "Unknown"
 	}
@@ -35,18 +56,40 @@ func (s Source) ToScraperType() scraper.ScraperType {
 		return scraper.AllAnimeType
 	case SourceAnimeFire:
 		return scraper.AnimefireType
+	case SourceGoyabu:
+		return scraper.GoyabuType
+	case SourceSuperFlix:
+		return scraper.SuperFlixType
+	case SourceHiAnime:
+		return scraper.HiAnimeType
+	case SourceGogoAnime:
+		return scraper.GogoAnimeType
+	case SourceAniNeko:
+		return scraper.AniNekoType
 	default:
 		return scraper.AllAnimeType
 	}
 }
 
-// ParseSource parses a string into a Source type
+// ParseSource parses a string into a Source type.
+// Accepts both canonical names ("AllAnime") and display names ("Animefire.io").
 func ParseSource(s string) (Source, error) {
-	switch s {
-	case "AllAnime", "allanime", "all":
+	lower := strings.ToLower(s)
+	switch {
+	case lower == "allanime" || lower == "all":
 		return SourceAllAnime, nil
-	case "AnimeFire", "animefire", "fire":
+	case lower == "animefire" || lower == "fire" || lower == "animefire.io":
 		return SourceAnimeFire, nil
+	case lower == "goyabu":
+		return SourceGoyabu, nil
+	case lower == "superflix":
+		return SourceSuperFlix, nil
+	case lower == "hianime":
+		return SourceHiAnime, nil
+	case lower == "gogoanime":
+		return SourceGogoAnime, nil
+	case lower == "anineko":
+		return SourceAniNeko, nil
 	default:
 		return SourceAllAnime, fmt.Errorf("unknown source: %s", s)
 	}

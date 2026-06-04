@@ -62,6 +62,7 @@ type EpisodeResult struct {
 	IsFiller  bool       `json:"isFiller,omitempty"`
 	IsRecap   bool       `json:"isRecap,omitempty"`
 	Synopsis  string     `json:"synopsis,omitempty"`
+	SeasonID  string     `json:"seasonId,omitempty"`
 	SkipOpStart int      `json:"skipOpStart,omitempty"`
 	SkipOpEnd   int      `json:"skipOpEnd,omitempty"`
 	SkipEdStart int      `json:"skipEdStart,omitempty"`
@@ -172,6 +173,7 @@ func GetEpisodes(animeURL string, source string) (string, error) {
 			IsFiller: ep.IsFiller,
 			IsRecap:  ep.IsRecap,
 			Synopsis: ep.Synopsis,
+			SeasonID: ep.SeasonID,
 		}
 		if ep.Title != nil {
 			r.Title = ep.Title.English
@@ -223,8 +225,9 @@ func GetStreamURL(animeJSON string, episodeJSON string, quality string, mode str
 
 	// Parse episode from JSON
 	var episodeInput struct {
-		Number string `json:"number"`
-		URL    string `json:"url"`
+		Number   string `json:"number"`
+		URL      string `json:"url"`
+		SeasonID string `json:"seasonId"`
 	}
 	if err := json.Unmarshal([]byte(episodeJSON), &episodeInput); err != nil {
 		return "", fmt.Errorf("invalid episodeJSON: %w", err)
@@ -237,8 +240,9 @@ func GetStreamURL(animeJSON string, episodeJSON string, quality string, mode str
 		Name:   animeInput.Name,
 	}
 	episode := &types.Episode{
-		Number: episodeInput.Number,
-		URL:    episodeInput.URL,
+		Number:   episodeInput.Number,
+		URL:      episodeInput.URL,
+		SeasonID: episodeInput.SeasonID,
 	}
 
 	opts := &goanime.StreamOptions{

@@ -27,7 +27,7 @@ type Anime struct {
 
 // Episode represents a single episode of an anime
 type Episode struct {
-	// Number is the episode number as a string (e.g., "1", "1.5", "OVA")
+	// Number is the episode number as a string (e.g., "1", "1.5", "OVA", "S01E03")
 	Number string
 	// Num is the episode number as an integer
 	Num int
@@ -47,6 +47,8 @@ type Episode struct {
 	Synopsis string
 	// SkipTimes contains timestamps for skipping intros/outros
 	SkipTimes *SkipTimes
+	// SeasonID is the season identifier for TV shows (e.g., "1", "2")
+	SeasonID string
 }
 
 // TitleDetails contains anime/episode titles in multiple languages
@@ -168,6 +170,7 @@ func FromInternalEpisode(internal *models.Episode) *Episode {
 		IsFiller: internal.IsFiller,
 		IsRecap:  internal.IsRecap,
 		Synopsis: internal.Synopsis,
+		SeasonID: internal.SeasonID,
 	}
 
 	if internal.Title.Romaji != "" || internal.Title.English != "" || internal.Title.Japanese != "" {
