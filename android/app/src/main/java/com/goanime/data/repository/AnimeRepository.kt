@@ -59,6 +59,7 @@ class AnimeRepository @Inject constructor(
             val episodeJson = gson.toJson(mapOf(
                 "number" to episode.number,
                 "url" to episode.url,
+                "seasonId" to (episode.seasonId ?: ""),
             ))
             val json = Gobridge.getStreamURL(animeJson, episodeJson, quality, mode)
             val result: StreamResult = gson.fromJson(json, StreamResult::class.java)

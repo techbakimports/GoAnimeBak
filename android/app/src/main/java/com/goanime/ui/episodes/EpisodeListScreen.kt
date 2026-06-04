@@ -14,7 +14,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.goanime.data.model.EpisodeResult
-import com.google.gson.Gson
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,7 +23,6 @@ fun EpisodeListScreen(
     viewModel: EpisodeListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val gson = remember { Gson() }
 
     Scaffold(
         topBar = {
@@ -56,13 +54,17 @@ fun EpisodeListScreen(
                     )
                 }
                 uiState.error != null -> {
-                    Text(
-                        text = uiState.error!!,
-                        color = MaterialTheme.colorScheme.error,
+                    Column(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .padding(16.dp)
-                    )
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = uiState.error!!,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
                 else -> {
                     LazyColumn(
@@ -79,6 +81,28 @@ fun EpisodeListScreen(
                                         onEpisodeSelected(encoded)
                                     }
                                 }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Stream loading overlay
+            if (uiState.isLoadingStream) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Loading stream...",
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }

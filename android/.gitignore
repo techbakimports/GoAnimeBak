@@ -9,7 +9,7 @@ local.properties
 *.iml
 
 # Go bridge output (regenerated via `make android-lib`)
-app/libs/*.aar
+app/libs/
 
 # OS
 .DS_Store

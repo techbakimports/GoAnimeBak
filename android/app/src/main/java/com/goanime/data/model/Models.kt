@@ -38,6 +38,7 @@ data class EpisodeResult(
     @SerializedName("isFiller") val isFiller: Boolean = false,
     @SerializedName("isRecap") val isRecap: Boolean = false,
     @SerializedName("synopsis") val synopsis: String?,
+    @SerializedName("seasonId") val seasonId: String? = null,
     @SerializedName("skipOpStart") val skipOpStart: Int = 0,
     @SerializedName("skipOpEnd") val skipOpEnd: Int = 0,
     @SerializedName("skipEdStart") val skipEdStart: Int = 0,

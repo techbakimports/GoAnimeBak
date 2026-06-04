@@ -20,6 +20,7 @@ data class EpisodeListUiState(
     val animeName: String = "",
     val episodes: List<EpisodeResult> = emptyList(),
     val isLoading: Boolean = true,
+    val isLoadingStream: Boolean = false,
     val error: String? = null,
 )
 
@@ -68,14 +69,20 @@ class EpisodeListViewModel @Inject constructor(
 
     fun onEpisodeSelected(episode: EpisodeResult, onStreamReady: (String) -> Unit) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingStream = true, error = null) }
+
             repository.getStreamUrl(anime, episode)
                 .onSuccess { stream ->
+                    _uiState.update { it.copy(isLoadingStream = false) }
                     val json = gson.toJson(stream)
                     onStreamReady(json)
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(error = "Stream error: ${error.message}")
+                        it.copy(
+                            isLoadingStream = false,
+                            error = "Stream error: ${error.message}"
+                        )
                     }
                 }
         }
