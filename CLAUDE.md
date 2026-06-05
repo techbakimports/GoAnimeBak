@@ -252,9 +252,6 @@ This minimizes latency when the user first searches.
 - **hotfix/***: Critical fixes that go directly to main
 
 **Rules:**
-- Never commit directly to main
-- All changes go through dev first
-- Create feature/bugfix branches from dev
 - Use conventional commit messages: type(scope): description (e.g., feat(scraper): add FlixHQ support)
 
 **Commit Types:**
