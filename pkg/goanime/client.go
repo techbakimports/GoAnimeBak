@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alvarorichard/Goanime/internal/models"
@@ -228,7 +229,49 @@ func (c *Client) GetEpisodeStreamURL(anime *types.Anime, episode *types.Episode,
 	}
 
 	// All other sources use the episode URL directly
-	return scr.GetStreamURL(episode.URL)
+	streamURL, metadata, err := scr.GetStreamURL(episode.URL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Validate that the returned URL is actually a playable stream, not an
+	// intermediate page, embed JS, or other non-video content.
+	if !isPlayableStreamURL(streamURL) {
+		return "", nil, fmt.Errorf("source returned non-playable URL: %s", streamURL)
+	}
+
+	return streamURL, metadata, nil
+}
+
+// isPlayableStreamURL checks if a URL looks like a direct video/audio stream.
+// Rejects HTML pages, JavaScript files, and other non-media URLs.
+func isPlayableStreamURL(u string) bool {
+	lower := strings.ToLower(u)
+
+	// Reject obvious non-video URLs
+	if strings.HasSuffix(lower, ".js") ||
+		strings.HasSuffix(lower, ".html") ||
+		strings.HasSuffix(lower, ".htm") ||
+		strings.HasSuffix(lower, ".css") ||
+		strings.HasSuffix(lower, ".png") ||
+		strings.HasSuffix(lower, ".jpg") {
+		return false
+	}
+
+	// Accept known video/stream patterns
+	if strings.Contains(lower, ".mp4") ||
+		strings.Contains(lower, ".m3u8") ||
+		strings.Contains(lower, ".webm") ||
+		strings.Contains(lower, ".mkv") ||
+		strings.Contains(lower, ".ts") ||
+		strings.Contains(lower, "googlevideo.com") ||
+		strings.Contains(lower, "/videoplayback") ||
+		strings.Contains(lower, "master.m3u8") {
+		return true
+	}
+
+	// For unknown URLs, allow them (some CDNs use generic paths)
+	return true
 }
 
 // GetAvailableSources returns a list of all available scraper sources.

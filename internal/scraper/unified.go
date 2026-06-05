@@ -624,10 +624,22 @@ func (a *AnimefireAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, 
 }
 
 func (a *AnimefireAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
-	url, err := a.client.GetEpisodeStreamURL(episodeURL)
-	metadata := make(map[string]string)
-	metadata["source"] = "animefire"
-	return url, metadata, err
+	rawURL, err := a.client.GetEpisodeStreamURL(episodeURL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Resolve intermediate /video/ URLs to actual CDN stream URLs
+	resolvedURL, err := a.client.ResolveVideoURL(rawURL)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve AnimeFire video URL: %w", err)
+	}
+
+	metadata := map[string]string{
+		"source":  "animefire",
+		"referer": AnimefireBase,
+	}
+	return resolvedURL, metadata, nil
 }
 
 func (a *AnimefireAdapter) GetType() ScraperType {
@@ -648,10 +660,29 @@ func (a *GoyabuAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, err
 }
 
 func (a *GoyabuAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
-	url, err := a.client.GetEpisodeStreamURL(episodeURL)
-	metadata := make(map[string]string)
-	metadata["source"] = "goyabu"
-	return url, metadata, err
+	rawURL, err := a.client.GetEpisodeStreamURL(episodeURL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	resolvedURL := rawURL
+
+	metadata := map[string]string{"source": "goyabu"}
+
+	// Resolve Blogger embed URLs to actual googlevideo CDN URLs
+	lower := strings.ToLower(rawURL)
+	if strings.Contains(lower, "blogger.com") || strings.Contains(lower, "blogspot.com") {
+		result, err := ResolveBloggerURLFull(rawURL)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to resolve Blogger video: %w", err)
+		}
+		resolvedURL = result.VideoURL
+		if result.Cookies != "" {
+			metadata["cookie"] = result.Cookies
+		}
+	}
+
+	return resolvedURL, metadata, nil
 }
 
 func (a *GoyabuAdapter) GetType() ScraperType {

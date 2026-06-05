@@ -634,6 +634,13 @@ func getBloggerSessionClient() *surf.Client {
 
 // extractBloggerGoogleVideoURL uses surf with Chrome browser impersonation
 // to extract the googlevideo URL via Blogger's batchexecute API.
+// ResolveBloggerVideoURL extracts the direct googlevideo CDN URL from a
+// Blogger video embed page. Exported so the scraper adapters can resolve
+// Blogger URLs before returning them to library/Android callers.
+func ResolveBloggerVideoURL(bloggerURL string) (string, error) {
+	return extractBloggerGoogleVideoURL(bloggerURL)
+}
+
 func extractBloggerGoogleVideoURL(bloggerURL string) (string, error) {
 	tokenMatch := tokenRe.FindStringSubmatch(bloggerURL)
 	if len(tokenMatch) < 2 {

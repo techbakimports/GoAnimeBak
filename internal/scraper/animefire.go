@@ -2,8 +2,10 @@
 package scraper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -512,6 +514,79 @@ func isValidAnimefireBloggerURL(rawValue string) bool {
 	}
 
 	return true
+}
+
+// animeFireVideoData matches the JSON shape returned by AnimeFire's /video/ endpoint.
+type animeFireVideoData struct {
+	Src   string `json:"src"`
+	Label string `json:"label"`
+}
+
+type animeFireVideoResponse struct {
+	Data []animeFireVideoData `json:"data"`
+}
+
+// ResolveVideoURL resolves an AnimeFire intermediate URL (/video/...) to the
+// actual CDN stream URL. If the URL is already a direct video link, it is
+// returned unchanged. This is needed for library/Android usage where the
+// player cannot resolve the intermediate URL itself.
+func (c *AnimefireClient) ResolveVideoURL(videoURL string) (string, error) {
+	// If it's already a direct video, skip resolution
+	lower := strings.ToLower(videoURL)
+	if strings.Contains(lower, ".mp4") || strings.Contains(lower, ".m3u8") ||
+		strings.Contains(lower, ".webm") {
+		return videoURL, nil
+	}
+
+	// Only resolve /video/ URLs
+	if !strings.Contains(lower, "animefire.io/video/") &&
+		!strings.Contains(lower, "animefire.plus/video/") {
+		return videoURL, nil
+	}
+
+	util.Debug("AnimeFire: resolving intermediate URL", "url", videoURL)
+
+	req, err := http.NewRequest("GET", videoURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	c.decorateRequest(req)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch video API: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return "", fmt.Errorf("failed to read video API response: %w", err)
+	}
+
+	// Parse JSON response: {"data": [{"src": "url", "label": "720p"}, ...]}
+	var videoResp animeFireVideoResponse
+	if err := json.Unmarshal(body, &videoResp); err != nil {
+		return "", fmt.Errorf("failed to parse video API JSON: %w", err)
+	}
+
+	if len(videoResp.Data) == 0 {
+		return "", errors.New("video API returned no sources")
+	}
+
+	// Select best quality
+	qualityRanks := map[string]int{"1080p": 5, "720p": 4, "480p": 3, "360p": 2, "240p": 1}
+	best := videoResp.Data[0]
+	bestRank := qualityRanks[strings.ToLower(best.Label)]
+	for _, v := range videoResp.Data[1:] {
+		rank := qualityRanks[strings.ToLower(v.Label)]
+		if rank > bestRank {
+			best = v
+			bestRank = rank
+		}
+	}
+
+	util.Debug("AnimeFire: resolved to CDN URL", "quality", best.Label, "url", best.Src)
+	return best.Src, nil
 }
 
 // GetAnimeDetails is a placeholder method; details are fetched by the API layer.
