@@ -18,6 +18,7 @@ import javax.inject.Inject
 
 data class EpisodeListUiState(
     val animeName: String = "",
+    val animeSource: String = "",
     val episodes: List<EpisodeResult> = emptyList(),
     val isLoading: Boolean = true,
     val isLoadingStream: Boolean = false,
@@ -42,7 +43,7 @@ class EpisodeListViewModel @Inject constructor(
             "UTF-8"
         )
         anime = gson.fromJson(animeJson, AnimeResult::class.java)
-        _uiState.update { it.copy(animeName = anime.name) }
+        _uiState.update { it.copy(animeName = anime.name, animeSource = anime.source) }
         loadEpisodes()
     }
 

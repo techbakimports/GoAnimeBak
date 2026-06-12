@@ -53,6 +53,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.01.01")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -87,6 +88,12 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // DataStore (settings persistence)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Google Play Billing (in-app purchases)
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 
     // JSON parsing
     implementation("com.google.code.gson:gson:2.12.1")
