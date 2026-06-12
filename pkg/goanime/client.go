@@ -234,6 +234,24 @@ func (c *Client) GetEpisodeStreamURL(anime *types.Anime, episode *types.Episode,
 		return "", nil, err
 	}
 
+	// Safety net: resolve any Blogger/Blogspot embed URLs that scrapers
+	// may return without resolving (e.g. blogger.com/video.g?token=...).
+	// ExoPlayer and other players cannot parse these intermediate pages.
+	lower := strings.ToLower(streamURL)
+	if strings.Contains(lower, "blogger.com") || strings.Contains(lower, "blogspot.com") {
+		result, resolveErr := scraper.ResolveBloggerURLFull(streamURL)
+		if resolveErr != nil {
+			return "", nil, fmt.Errorf("failed to resolve Blogger video: %w", resolveErr)
+		}
+		streamURL = result.VideoURL
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		if result.Cookies != "" {
+			metadata["cookie"] = result.Cookies
+		}
+	}
+
 	// Validate that the returned URL is actually a playable stream, not an
 	// intermediate page, embed JS, or other non-video content.
 	if !isPlayableStreamURL(streamURL) {
@@ -255,6 +273,20 @@ func isPlayableStreamURL(u string) bool {
 		strings.HasSuffix(lower, ".css") ||
 		strings.HasSuffix(lower, ".png") ||
 		strings.HasSuffix(lower, ".jpg") {
+		return false
+	}
+
+	// Reject intermediate embed pages that need resolution
+	if strings.Contains(lower, "blogger.com/video.g") ||
+		strings.Contains(lower, "blogspot.com/video.g") {
+		return false
+	}
+
+	// Reject known embed player hosts that are HTML pages, not direct streams
+	if strings.Contains(lower, "megacloud.tv/embed") ||
+		strings.Contains(lower, "megacloud.club/embed") ||
+		strings.Contains(lower, "playtaku.com") ||
+		strings.Contains(lower, "/streaming.php") {
 		return false
 	}
 

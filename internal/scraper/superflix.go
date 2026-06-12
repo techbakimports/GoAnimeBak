@@ -377,6 +377,10 @@ func (c *SuperFlixClient) GetPlayerPage(ctx context.Context, mediaType, mediaID,
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("player page returned HTTP %d (possible Cloudflare block or domain change)", resp.StatusCode)
+	}
+
 	return string(body), nil
 }
 
@@ -761,7 +765,35 @@ func (c *SuperFlixClient) GetStreamURL(ctx context.Context, mediaType, mediaID, 
 
 	tokens := c.ExtractTokens(html)
 	if tokens.CSRF == "" || tokens.PageToken == "" {
-		return nil, fmt.Errorf("failed to extract tokens from player page")
+		// Tokens not in page — layout may have changed or it's a different player.
+		// Try to find an embedded stream URL directly in the page HTML before failing.
+		util.Warnf("SuperFlix: tokens missing from player page — trying direct HTML extraction")
+		streamURL, htmlErr := extractStreamFromPlayerHTML(html)
+		if htmlErr == nil {
+			return &SuperFlixStreamResult{
+				StreamURL: streamURL,
+				Title:     tokens.Title,
+				Referer:   c.baseURL + "/",
+			}, nil
+		}
+		// Option C: yt-dlp (CLI only — not available on Android)
+		playerPath := fmt.Sprintf("/%s/%s", mediaType, mediaID)
+		if season != "" {
+			playerPath += "/" + season
+		}
+		if episode != "" {
+			playerPath += "/" + episode
+		}
+		playerPageURL := c.baseURL + playerPath
+		ytURL, ytErr := getStreamURLWithYTDLP(ctx, playerPageURL, c.baseURL+"/", c.userAgent)
+		if ytErr == nil {
+			return &SuperFlixStreamResult{
+				StreamURL: ytURL,
+				Title:     tokens.Title,
+				Referer:   c.baseURL + "/",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to extract tokens from player page (HTML: %v; yt-dlp: %v)", htmlErr, ytErr)
 	}
 
 	servers, err := c.Bootstrap(ctx, tokens)

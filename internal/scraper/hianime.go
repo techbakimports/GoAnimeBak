@@ -35,6 +35,12 @@ var (
 	hiAnimeM3U8Re = regexp.MustCompile(`(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)`)
 )
 
+// megacloudSourcesResp is the JSON returned by the megacloud getSources AJAX endpoint.
+// Sources can be a JSON array (unencrypted) or a base64 string (AES-CBC encrypted).
+type megacloudSourcesResp struct {
+	Sources json.RawMessage `json:"sources"`
+}
+
 // hiAnimeAJAXResp is the standard JSON envelope returned by HiAnime AJAX endpoints.
 type hiAnimeAJAXResp struct {
 	Status bool   `json:"status"`
@@ -299,77 +305,160 @@ func (c *HiAnimeClient) parseEpisodeHTML(html string) []models.Episode {
 
 // GetEpisodeStreamURL fetches the stream URL using the HiAnime AJAX chain.
 // episodeID is the data-id value from the episode list (see parseEpisodeHTML).
-// The chain is: servers list → pick "sub" server → sources endpoint.
-// Sources may return a direct M3U8 (preferred) or an embed URL (e.g. megacloud.tv).
-// Megacloud embed URLs require additional decryption and will not play directly in mpv;
-// in that case the caller receives the embed URL and playback may fail.
+// The chain is: servers list → try each server → sources endpoint.
+// "sub" servers are tried first. For megacloud embed links the getSources API
+// is called directly; if sources are unencrypted an M3U8 is returned immediately.
+// If all servers fail, the last error is returned.
 func (c *HiAnimeClient) GetEpisodeStreamURL(episodeID string) (string, error) {
 	util.Debug("HiAnime stream", "episodeID", episodeID)
 
-	serverID, err := c.pickSubServer(episodeID)
+	serverIDs, err := c.getAllServers(episodeID)
 	if err != nil {
 		return "", fmt.Errorf("hianime: get servers: %w", err)
 	}
+	if len(serverIDs) == 0 {
+		return "", errors.New("hianime: no servers available")
+	}
 
-	return c.fetchSources(serverID)
+	var lastErr error
+	for _, serverID := range serverIDs {
+		streamURL, err := c.fetchSources(serverID)
+		if err == nil && streamURL != "" {
+			return streamURL, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return "", fmt.Errorf("hianime: all servers failed: %w", lastErr)
+	}
+	return "", errors.New("hianime: no stream found across all servers")
 }
 
-func (c *HiAnimeClient) pickSubServer(episodeID string) (string, error) {
+// getAllServers returns all available server IDs, with "sub" type first.
+func (c *HiAnimeClient) getAllServers(episodeID string) ([]string, error) {
 	serversURL := fmt.Sprintf("%s/ajax/v2/episode/servers?episodeId=%s", c.baseURL, episodeID)
 
 	req, err := http.NewRequest("GET", serversURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	c.decorateAJAX(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request: %w", err)
+		return nil, fmt.Errorf("request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if err := checkHTTPStatus(resp, "HiAnime servers"); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
 	if err != nil {
-		return "", fmt.Errorf("read body: %w", err)
+		return nil, fmt.Errorf("read body: %w", err)
 	}
 
 	var ajaxResp hiAnimeAJAXResp
 	if err := json.Unmarshal(body, &ajaxResp); err != nil {
-		return "", fmt.Errorf("parse JSON: %w", err)
+		return nil, fmt.Errorf("parse JSON: %w", err)
 	}
 	if !ajaxResp.Status || ajaxResp.HTML == "" {
-		return "", errors.New("hianime: no servers available")
+		return nil, errors.New("hianime: no servers available")
 	}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(ajaxResp.HTML))
 	if err != nil {
-		return "", fmt.Errorf("parse servers HTML: %w", err)
+		return nil, fmt.Errorf("parse servers HTML: %w", err)
 	}
 
-	var serverID string
-	// Prefer "sub" type; fall back to first available
+	var subIDs, otherIDs []string
 	doc.Find("li[data-id]").Each(func(_ int, s *goquery.Selection) {
-		if serverID != "" {
+		id, _ := s.Attr("data-id")
+		if id == "" {
 			return
 		}
 		dataType, _ := s.Attr("data-type")
-		id, _ := s.Attr("data-id")
-		if dataType == "sub" && id != "" {
-			serverID = id
+		if dataType == "sub" {
+			subIDs = append(subIDs, id)
+		} else {
+			otherIDs = append(otherIDs, id)
 		}
 	})
-	if serverID == "" {
-		serverID, _ = doc.Find("li[data-id]").First().Attr("data-id")
+
+	return append(subIDs, otherIDs...), nil
+}
+
+// tryResolveMegacloudEmbed calls the megacloud getSources AJAX endpoint and returns
+// a direct M3U8 if sources are unencrypted. Returns an error when sources are
+// AES-encrypted (the key is embedded in the player JS and changes periodically).
+func (c *HiAnimeClient) tryResolveMegacloudEmbed(embedURL string) (string, error) {
+	parsed, err := url.Parse(embedURL)
+	if err != nil {
+		return "", fmt.Errorf("parse URL: %w", err)
 	}
-	if serverID == "" {
-		return "", errors.New("hianime: no server found in response")
+
+	// Extract video ID = last non-empty path segment
+	path := strings.TrimSuffix(parsed.Path, "/")
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash < 0 || lastSlash+1 >= len(path) {
+		return "", fmt.Errorf("could not extract video ID from %s", embedURL)
 	}
-	return serverID, nil
+	videoID := path[lastSlash+1:]
+
+	apiURL := fmt.Sprintf("%s://%s/embed-2/ajax/e-1/getSources?id=%s", parsed.Scheme, parsed.Host, videoID)
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsed.Scheme, parsed.Host))
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("megacloud request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("megacloud API HTTP %d", resp.StatusCode)
+	}
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return "", fmt.Errorf("read body: %w", err)
+	}
+
+	var mcResp megacloudSourcesResp
+	if err := json.Unmarshal(bodyBytes, &mcResp); err != nil {
+		return "", fmt.Errorf("parse megacloud JSON: %w", err)
+	}
+
+	// Sources is an unencrypted JSON array when it starts with '['
+	if len(mcResp.Sources) > 0 && mcResp.Sources[0] == '[' {
+		var sources []struct {
+			File string `json:"file"`
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(mcResp.Sources, &sources); err != nil {
+			return "", fmt.Errorf("parse sources array: %w", err)
+		}
+		for _, src := range sources {
+			if src.File != "" && strings.Contains(src.File, ".m3u8") {
+				return validateStreamURL(src.File, "HiAnime/Megacloud")
+			}
+		}
+		for _, src := range sources {
+			if src.File != "" {
+				return validateStreamURL(src.File, "HiAnime/Megacloud")
+			}
+		}
+	}
+
+	return "", errors.New("megacloud: sources are AES-encrypted or unavailable")
 }
 
 func (c *HiAnimeClient) fetchSources(serverID string) (string, error) {
@@ -408,8 +497,12 @@ func (c *HiAnimeClient) fetchSources(serverID string) (string, error) {
 		}
 	}
 
-	// Embed link (e.g. megacloud.tv) as fallback
+	// Embed link: try megacloud AJAX resolution; for other hosts return as-is.
+	// If megacloud resolution fails, return an error so the caller tries the next server.
 	if sourcesResp.Link != "" {
+		if strings.Contains(strings.ToLower(sourcesResp.Link), "megacloud") {
+			return c.tryResolveMegacloudEmbed(sourcesResp.Link)
+		}
 		return validateStreamURL(sourcesResp.Link, "HiAnime")
 	}
 

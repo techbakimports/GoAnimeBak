@@ -392,15 +392,15 @@ func TestSearchAnime_SlowScraperAlwaysIncluded(t *testing.T) {
 		},
 	}
 
-	fast1 := fast("AllAnime Hit")
+	fast1 := fast("Black Clover (AllAnime)")
 	fast1.scraperType = AllAnimeType
 	manager.scrapers[AllAnimeType] = fast1
 
-	fast2 := fast("AnimeFire Hit")
+	fast2 := fast("Black Clover (AnimeFire)")
 	fast2.scraperType = AnimefireType
 	manager.scrapers[AnimefireType] = fast2
 
-	fast3 := fast("Goyabu Hit")
+	fast3 := fast("Black Clover (Goyabu)")
 	fast3.scraperType = GoyabuType
 	manager.scrapers[GoyabuType] = fast3
 

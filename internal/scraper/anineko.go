@@ -2,6 +2,7 @@
 package scraper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,10 +25,37 @@ const (
 )
 
 var (
-	aniNekoEpNumRe = regexp.MustCompile(`/ep-(\d+)(?:[/?#]|$)`)
-	aniNekoM3U8Re  = regexp.MustCompile(`(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)`)
-	aniNekoSrcRe   = regexp.MustCompile(`(?:src|file|url)\s*[=:]\s*["'](https?://[^"']+)["']`)
+	aniNekoEpNumRe    = regexp.MustCompile(`/ep-(\d+)(?:[/?#]|$)`)
+	aniNekoM3U8Re     = regexp.MustCompile(`(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)`)
+	aniNekoSrcRe      = regexp.MustCompile(`(?:src|file|url)\s*[=:]\s*["'](https?://[^"']+)["']`)
+	aniNekoNextDataRe = regexp.MustCompile(`<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)</script>`)
 )
+
+// extractPlayableURLFromAny recursively walks a decoded JSON value searching for
+// the first HTTP(S) URL that looks like a direct video stream (.m3u8 or .mp4).
+func extractPlayableURLFromAny(v any) string {
+	switch val := v.(type) {
+	case string:
+		lower := strings.ToLower(val)
+		if strings.HasPrefix(val, "http") &&
+			(strings.Contains(lower, ".m3u8") || strings.Contains(lower, ".mp4")) {
+			return val
+		}
+	case map[string]any:
+		for _, child := range val {
+			if u := extractPlayableURLFromAny(child); u != "" {
+				return u
+			}
+		}
+	case []any:
+		for _, child := range val {
+			if u := extractPlayableURLFromAny(child); u != "" {
+				return u
+			}
+		}
+	}
+	return ""
+}
 
 // AniNekoClient handles scraping of anineko.to.
 type AniNekoClient struct {
@@ -339,5 +367,17 @@ func (c *AniNekoClient) GetEpisodeStreamURL(episodeURL string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("anineko: could not extract stream URL from %s", episodeURL)
+	// Strategy 5: __NEXT_DATA__ — Next.js server-side JSON may contain video sources
+	// even when the page itself is CSR. Walk the full JSON tree for any M3U8/MP4 URL.
+	if m := aniNekoNextDataRe.FindStringSubmatch(html); len(m) >= 2 {
+		var nextData any
+		if err := json.Unmarshal([]byte(m[1]), &nextData); err == nil {
+			if u := extractPlayableURLFromAny(nextData); u != "" {
+				util.Debug("AniNeko: URL in __NEXT_DATA__", "url", u)
+				return validateStreamURL(u, "AniNeko")
+			}
+		}
+	}
+
+	return "", fmt.Errorf("anineko: could not extract stream URL from %s (site may require JavaScript rendering)", episodeURL)
 }

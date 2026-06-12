@@ -223,12 +223,17 @@ func TestHiAnimeFetchSources_DirectM3U8(t *testing.T) {
 	assert.Contains(t, streamURL, ".m3u8")
 }
 
-func TestHiAnimeFetchSources_EmbedFallback(t *testing.T) {
+// TestHiAnimeFetchSources_MegacloudResolution verifies that when the sources
+// endpoint returns only a megacloud embed link, fetchSources attempts to resolve
+// it via the megacloud getSources API. In the test environment the real megacloud
+// API is unreachable, so an error is returned — which is correct: the caller
+// (GetEpisodeStreamURL) will then try the next available server.
+func TestHiAnimeFetchSources_MegacloudResolution(t *testing.T) {
 	t.Parallel()
 
 	sourcesPayload, _ := json.Marshal(map[string]any{
 		"status":  true,
-		"link":    "https://megacloud.tv/embed/e-1/abc123",
+		"link":    "https://megacloud.tv/embed-2/e-1/abc123",
 		"sources": []any{},
 	})
 
@@ -241,9 +246,10 @@ func TestHiAnimeFetchSources_EmbedFallback(t *testing.T) {
 	client := NewHiAnimeClient()
 	client.baseURL = server.URL
 
-	streamURL, err := client.fetchSources("server-xyz")
-	require.NoError(t, err)
-	assert.Contains(t, streamURL, "megacloud.tv")
+	// Resolution attempts the real megacloud API which is unreachable in tests,
+	// so we expect an error (not a raw embed URL passed through).
+	_, err := client.fetchSources("server-xyz")
+	require.Error(t, err, "should return error when megacloud resolution fails so caller tries next server")
 }
 
 func TestHiAnimeFetchSources_NoSource(t *testing.T) {

@@ -131,6 +131,9 @@ func (sm *ScraperManager) searchSpecificScraper(query string, scraperType Scrape
 	// Add language tags
 	sm.tagResults(results, scraperType)
 
+	// Filter out results with no relevance to the query
+	results = filterByRelevance(results, query)
+
 	if len(results) > 0 {
 		util.Debug("Search completed", "scraper", sourceName, "results", len(results))
 	}
@@ -255,6 +258,19 @@ done:
 		return nil, fmt.Errorf("no anime found with name: %s", query)
 	}
 
+	// Filter out results with no relevance to the query
+	finalResults = filterByRelevance(finalResults, query)
+
+	if len(finalResults) == 0 {
+		util.Debug("No relevant results after filtering", "query", query)
+		errorsMutex.Lock()
+		defer errorsMutex.Unlock()
+		if len(searchErrors) > 0 {
+			return nil, fmt.Errorf("no anime found with name: %s (some sources failed: %s): %w", query, strings.Join(searchErrors, "; "), errors.Join(searchSourceErrors...))
+		}
+		return nil, fmt.Errorf("no anime found with name: %s", query)
+	}
+
 	// Sort results: PT-BR first, then everything else
 	sortPTBRFirst(finalResults)
 
@@ -312,6 +328,45 @@ func (sm *ScraperManager) searchWithTimeout(ctx context.Context, st ScraperType,
 			err:         enrichedErr,
 		}
 	}
+}
+
+// filterByRelevance removes results whose title shares no token with the query.
+// Only tokens with ≥3 characters are used as signal. If no meaningful tokens
+// exist (e.g. query "re"), the original list is returned unchanged.
+// If filtering removes everything, the original list is returned as a safety net.
+func filterByRelevance(results []*models.Anime, query string) []*models.Anime {
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	allTokens := strings.Fields(queryLower)
+
+	var tokens []string
+	for _, t := range allTokens {
+		// Strip common tag prefixes added by tagResults so they don't bias matching
+		t = strings.TrimPrefix(t, "[pt-br]")
+		t = strings.TrimPrefix(t, "[english]")
+		if len(t) >= 3 {
+			tokens = append(tokens, t)
+		}
+	}
+
+	if len(tokens) == 0 {
+		return results
+	}
+
+	var filtered []*models.Anime
+	for _, anime := range results {
+		nameLower := strings.ToLower(anime.Name)
+		for _, token := range tokens {
+			if strings.Contains(nameLower, token) {
+				filtered = append(filtered, anime)
+				break
+			}
+		}
+	}
+
+	if len(filtered) == 0 {
+		return results
+	}
+	return filtered
 }
 
 // sortPTBRFirst reorders results so that PT-BR entries appear before all others,
@@ -639,6 +694,20 @@ func (a *AnimefireAdapter) GetStreamURL(episodeURL string, options ...any) (stri
 		"source":  "animefire",
 		"referer": AnimefireBase,
 	}
+
+	// Resolve Blogger embed URLs to actual googlevideo CDN URLs
+	lower := strings.ToLower(resolvedURL)
+	if strings.Contains(lower, "blogger.com") || strings.Contains(lower, "blogspot.com") {
+		result, err := ResolveBloggerURLFull(resolvedURL)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to resolve Blogger video: %w", err)
+		}
+		resolvedURL = result.VideoURL
+		if result.Cookies != "" {
+			metadata["cookie"] = result.Cookies
+		}
+	}
+
 	return resolvedURL, metadata, nil
 }
 

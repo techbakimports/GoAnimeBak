@@ -342,10 +342,13 @@ func (c *GogoAnimeClient) GetEpisodeStreamURL(episodeURL string) (string, error)
 			return "", err
 		}
 
-		// Strategy 1: iframe embed
+		// Strategy 1: iframe embed — follow it to extract direct M3U8
 		if src, exists := doc.Find("iframe[src]").First().Attr("src"); exists && src != "" {
-			util.Debug("GogoAnime: iframe found", "src", src)
-			return validateStreamURL(src, "GogoAnime")
+			util.Debug("GogoAnime: iframe found, following", "src", src)
+			if resolved, err := c.followEmbedAndExtractM3U8(src, episodeURL); err == nil && resolved != "" {
+				return validateStreamURL(resolved, "GogoAnime")
+			}
+			util.Debug("GogoAnime: iframe follow failed, continuing")
 		}
 		// Strategy 2: video element
 		if src, exists := doc.Find("video source[src]").Attr("src"); exists && src != "" {
@@ -366,6 +369,46 @@ func (c *GogoAnimeClient) GetEpisodeStreamURL(episodeURL string) (string, error)
 	}
 
 	return "", fmt.Errorf("gogoanime: could not extract stream URL from %s", episodeURL)
+}
+
+// followEmbedAndExtractM3U8 fetches an embed/iframe page and searches for a direct
+// M3U8 or other playable URL in the response HTML/JavaScript.
+// GogoAnime embed players (playtaku, vidstreaming, etc.) typically inline their
+// source URL in a jwplayer/plyr setup call, so a regex scan finds it without JS execution.
+func (c *GogoAnimeClient) followEmbedAndExtractM3U8(embedURL, referer string) (string, error) {
+	req, err := http.NewRequest("GET", embedURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Referer", referer)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+	if err != nil {
+		return "", fmt.Errorf("read body: %w", err)
+	}
+	html := string(body)
+
+	if m := gogoM3U8Re.FindString(html); m != "" {
+		return m, nil
+	}
+	if m := gogoEmbedURLRe.FindStringSubmatch(html); len(m) >= 2 {
+		return m[1], nil
+	}
+
+	return "", errors.New("no stream URL in embed page")
 }
 
 // domainOf returns the base domain for a GogoAnime URL.
