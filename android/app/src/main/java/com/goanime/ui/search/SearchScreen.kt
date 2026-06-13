@@ -301,7 +301,7 @@ private fun AnimeCard(
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    val isPtBr = anime.source in listOf("AnimeFire", "Goyabu", "SuperFlix")
+    val isPtBr = anime.source in listOf("AnimeFire", "Goyabu")
 
     Card(
         modifier = Modifier

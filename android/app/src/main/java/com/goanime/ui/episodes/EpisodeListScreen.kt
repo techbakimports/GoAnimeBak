@@ -152,7 +152,7 @@ private fun AnimeHeaderBanner(
     source: String,
     episodeCount: Int,
 ) {
-    val isPtBr = source in listOf("AnimeFire", "Goyabu", "SuperFlix")
+    val isPtBr = source in listOf("AnimeFire", "Goyabu")
 
     Box(
         modifier = Modifier

@@ -38,7 +38,6 @@ private val BUILT_IN_SOURCES = listOf(
     SourceChip("", "Todos"),
     SourceChip("AnimeFire", "AnimeFire 🇧🇷"),
     SourceChip("Goyabu", "Goyabu 🇧🇷"),
-    SourceChip("SuperFlix", "SuperFlix 🇧🇷"),
     SourceChip("AllAnime", "AllAnime"),
     SourceChip("HiAnime", "HiAnime"),
     SourceChip("GogoAnime", "GogoAnime"),

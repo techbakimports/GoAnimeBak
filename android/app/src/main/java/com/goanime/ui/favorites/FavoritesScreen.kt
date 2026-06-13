@@ -129,8 +129,7 @@ private fun FavoriteCard(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val isPtBr = favorite.source in listOf("AnimeFire", "Goyabu", "SuperFlix",
-        "Animefire.io", "SuperFlix")
+    val isPtBr = favorite.source in listOf("AnimeFire", "Goyabu", "Animefire.io")
 
     Card(
         modifier = Modifier

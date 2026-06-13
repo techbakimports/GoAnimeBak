@@ -25,7 +25,6 @@ data class ServerStatus(
 private val SERVERS = listOf(
     ServerStatus("AnimeFire",  "https://animefire.io",        isPtBr = true),
     ServerStatus("Goyabu",     "https://goyabu.io",           isPtBr = true),
-    ServerStatus("SuperFlix",  "https://superflixapi.best",   isPtBr = true),
     ServerStatus("AllAnime",   "https://api.allanime.day"),
     ServerStatus("HiAnime",    "https://hianimes.se"),
     ServerStatus("GogoAnime",  "https://gogoanime.by"),
