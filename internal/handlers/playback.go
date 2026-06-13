@@ -49,7 +49,7 @@ func HandlePlaybackMode(animeName string) {
 		}
 
 		// Fetch details and episodes.
-		// SuperFlix and movie/TV sources show a fuzzyfinder season-selector, so
+		// Movie/TV sources show a fuzzyfinder season-selector, so
 		// they CANNOT run concurrently with FetchAnimeDetails (a Bubble Tea spinner).
 		// Two programs fighting over the terminal corrupts state and prints raw
 		// escape sequences. For regular anime the episodes fetch is non-interactive,
@@ -57,8 +57,7 @@ func HandlePlaybackMode(animeName string) {
 		var episodes []models.Episode
 		var epErr error
 
-		needsInteractiveEpisodes := anime.Source == "SuperFlix" ||
-			anime.MediaType == models.MediaTypeMovie ||
+		needsInteractiveEpisodes := anime.MediaType == models.MediaTypeMovie ||
 			anime.MediaType == models.MediaTypeTV
 
 		if needsInteractiveEpisodes {

@@ -127,7 +127,7 @@ func (m animeSearchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m animeSearchModel) sourceTagPlain(a *models.Anime) string {
 	switch a.Source {
-	case "AnimeFire", "Goyabu", "SuperFlix":
+	case "AnimeFire", "Goyabu":
 		return " [PT-BR]"
 	case "AllAnime":
 		return " [EN/JP]"

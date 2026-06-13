@@ -17,8 +17,6 @@ const (
 	SourceAnimeFire
 	// SourceGoyabu represents the Goyabu source (PT-BR)
 	SourceGoyabu
-	// SourceSuperFlix represents the SuperFlix source (PT-BR movies/series/anime)
-	SourceSuperFlix
 	// SourceHiAnime represents the HiAnime source (English)
 	SourceHiAnime
 	// SourceGogoAnime represents the GogoAnime source (English)
@@ -36,8 +34,6 @@ func (s Source) String() string {
 		return "AnimeFire"
 	case SourceGoyabu:
 		return "Goyabu"
-	case SourceSuperFlix:
-		return "SuperFlix"
 	case SourceHiAnime:
 		return "HiAnime"
 	case SourceGogoAnime:
@@ -58,8 +54,6 @@ func (s Source) ToScraperType() scraper.ScraperType {
 		return scraper.AnimefireType
 	case SourceGoyabu:
 		return scraper.GoyabuType
-	case SourceSuperFlix:
-		return scraper.SuperFlixType
 	case SourceHiAnime:
 		return scraper.HiAnimeType
 	case SourceGogoAnime:
@@ -82,8 +76,6 @@ func ParseSource(s string) (Source, error) {
 		return SourceAnimeFire, nil
 	case lower == "goyabu":
 		return SourceGoyabu, nil
-	case lower == "superflix":
-		return SourceSuperFlix, nil
 	case lower == "hianime":
 		return SourceHiAnime, nil
 	case lower == "gogoanime":
