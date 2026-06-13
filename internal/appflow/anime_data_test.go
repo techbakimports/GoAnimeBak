@@ -12,6 +12,9 @@ import (
 // error instead of calling log.Fatal when no episodes are found.
 // Before the fix this scenario would kill the process with os.Exit(1).
 func TestGetAnimeEpisodes_EmptyResult(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping: makes real HTTP requests")
+	}
 	anime := &models.Anime{
 		Name:   "NonExistentAnime12345",
 		URL:    "https://invalid.example.com/anime/does-not-exist",
@@ -28,6 +31,9 @@ func TestGetAnimeEpisodes_EmptyResult(t *testing.T) {
 // TestGetAnimeEpisodesLegacy_EmptyResult verifies the legacy variant also
 // returns an error instead of fataling.
 func TestGetAnimeEpisodesLegacy_EmptyResult(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping: makes real HTTP requests")
+	}
 	episodes, err := GetAnimeEpisodesLegacy("https://invalid.example.com/anime/does-not-exist")
 
 	assert.Error(t, err, "expected an error for invalid URL")
@@ -41,8 +47,8 @@ func TestSearchAnime_InvalidName(t *testing.T) {
 	// SearchAnime may open an interactive fuzzy finder (tcell-based TUI) if
 	// results are returned. On CI there is no TTY, so tcell panics (Windows)
 	// or hangs waiting for terminal input.
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping interactive fuzzy-finder test in CI (no TTY available)")
+	if testing.Short() || os.Getenv("CI") != "" {
+		t.Skip("Skipping interactive fuzzy-finder test (no TTY available)")
 	}
 
 	anime, err := SearchAnime("zzzzz_nonexistent_anime_99999")
@@ -61,8 +67,8 @@ func TestSearchAnimeEnhanced_InvalidName(t *testing.T) {
 	// SearchAnimeEnhanced may open an interactive fuzzy finder (tcell-based TUI)
 	// if results are returned. On CI there is no TTY, so tcell panics (Windows)
 	// or hangs waiting for terminal input.
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping interactive fuzzy-finder test in CI (no TTY available)")
+	if testing.Short() || os.Getenv("CI") != "" {
+		t.Skip("Skipping interactive fuzzy-finder test (no TTY available)")
 	}
 
 	anime, err := SearchAnimeEnhanced("zzzzz_nonexistent_anime_99999")
@@ -76,6 +82,9 @@ func TestSearchAnimeEnhanced_InvalidName(t *testing.T) {
 
 // TestGetAnimeEpisodes_NilAnime verifies graceful handling of nil anime.
 func TestGetAnimeEpisodes_NilAnime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping: makes real HTTP requests")
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("GetAnimeEpisodes panicked on nil anime: %v", r)
