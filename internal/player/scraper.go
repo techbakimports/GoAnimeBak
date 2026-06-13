@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,7 +21,6 @@ import (
 	"github.com/alvarorichard/Goanime/internal/scraper"
 	"github.com/alvarorichard/Goanime/internal/tui"
 	"github.com/alvarorichard/Goanime/internal/util"
-	g "github.com/enetx/g"
 	"github.com/enetx/surf"
 )
 
@@ -33,10 +31,6 @@ var (
 	hasLetterRe         = regexp.MustCompile(`[A-Za-z]`)
 	videoURLPatternRe   = regexp.MustCompile(`https?://[^\s<>"]+?\.(?:mp4|m3u8)`)
 	bloggerPatternRe    = regexp.MustCompile(`^https://www\.blogger\.com/video\.g\?token=([A-Za-z0-9_-]+)$`)
-	tokenRe             = regexp.MustCompile(`token=([A-Za-z0-9_-]+)`)
-	sidRe               = regexp.MustCompile(`"FdrFJe"\s*:\s*"([^"]+)"`)
-	bhRe                = regexp.MustCompile(`"cfb2h"\s*:\s*"([^"]+)"`)
-	atRe                = regexp.MustCompile(`"SNlM0e"\s*:\s*"([^"]+)"`)
 	extractResolutionRe = regexp.MustCompile(`(\d+)p?`)
 	episodePatternREs   = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)epis[oó]dio\s+(\d+)`),
@@ -322,7 +316,7 @@ func GetVideoURLForEpisodeEnhanced(episode *models.Episode, anime *models.Anime)
 		return "", fmt.Errorf("cannot resolve stream without anime context for episode %s; missing anime identifier", episode.Number)
 	}
 
-	// Movie/TV routing: SuperFlix flows through the enhanced API.
+	// Movie/TV routing: flows through the enhanced API.
 	if isMovieOrTVSourcePlayer(anime) {
 		sourceLabel := anime.Source
 		if sourceLabel == "" {
@@ -405,9 +399,6 @@ func isAllAnimeSourcePlayer(anime *models.Anime) bool {
 func isMovieOrTVSourcePlayer(anime *models.Anime) bool {
 	if anime == nil {
 		return false
-	}
-	if anime.Source == "SuperFlix" {
-		return true
 	}
 	if anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV {
 		return true
@@ -614,24 +605,6 @@ func newSurfDownloadClient() *surf.Client {
 		Unwrap()
 }
 
-// bloggerSessionClient is a reusable surf session client for Blogger batchexecute.
-// Creating a new TLS-impersonated client per request adds ~200-400ms of handshake overhead.
-var (
-	bloggerSessionClient     *surf.Client
-	bloggerSessionClientOnce sync.Once
-)
-
-func getBloggerSessionClient() *surf.Client {
-	bloggerSessionClientOnce.Do(func() {
-		bloggerSessionClient = surf.NewClient().
-			Builder().
-			Impersonate().Chrome().
-			Build().
-			Unwrap()
-	})
-	return bloggerSessionClient
-}
-
 // extractBloggerGoogleVideoURL uses surf with Chrome browser impersonation
 // to extract the googlevideo URL via Blogger's batchexecute API.
 // ResolveBloggerVideoURL extracts the direct googlevideo CDN URL from a
@@ -642,95 +615,11 @@ func ResolveBloggerVideoURL(bloggerURL string) (string, error) {
 }
 
 func extractBloggerGoogleVideoURL(bloggerURL string) (string, error) {
-	tokenMatch := tokenRe.FindStringSubmatch(bloggerURL)
-	if len(tokenMatch) < 2 {
-		return "", fmt.Errorf("could not extract token from Blogger URL: %s", bloggerURL)
-	}
-	token := tokenMatch[1]
-
-	// Use cached session client (follows redirects, keeps cookies) for the batchexecute flow
-	client := getBloggerSessionClient()
-
-	// Step 1: Load the Blogger page to extract session params
-	result := client.Get(g.String(bloggerURL)).Do()
-	if result.IsErr() {
-		return "", fmt.Errorf("failed to load Blogger page: %w", result.Err())
-	}
-	resp := result.Ok()
-
-	pageBody, err := io.ReadAll(io.LimitReader(resp.Body.Stream(), 10*1024*1024))
-	if err != nil {
-		return "", fmt.Errorf("failed to read Blogger page: %w", err)
-	}
-	pageText := string(pageBody)
-
-	sidMatch := sidRe.FindStringSubmatch(pageText)
-	bhMatch := bhRe.FindStringSubmatch(pageText)
-	atMatch := atRe.FindStringSubmatch(pageText)
-	if len(sidMatch) < 2 || len(bhMatch) < 2 {
-		return "", errors.New("failed to extract session params (FdrFJe/cfb2h) from Blogger page")
-	}
-	sid := sidMatch[1]
-	bh := bhMatch[1]
-	at := ""
-	if len(atMatch) >= 2 {
-		at = atMatch[1]
-	}
-	util.Debugf("Blogger extract: SID=%s, build=%s, at=%s", sid, bh, at)
-
-	// Step 2: Call batchexecute to get the googlevideo URL
-	inner, err := json.Marshal([]any{token, "", 0})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal inner data: %w", err)
-	}
-	freq, err := json.Marshal([][]any{{[]any{"WcwnYd", string(inner), nil, "generic"}}})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal freq data: %w", err)
-	}
-	postData := "f.req=" + url.QueryEscape(string(freq))
-	if at != "" {
-		postData += "&at=" + url.QueryEscape(at)
-	}
-
-	util.Debugf("Blogger batchexecute postBody: %s", postData)
-
-	batchURL := fmt.Sprintf(
-		"https://www.blogger.com/_/BloggerVideoPlayerUi/data/batchexecute?rpcids=WcwnYd&source-path=%%2Fvideo.g&f.sid=%s&bl=%s&hl=en-US&_reqid=100001&rt=c",
-		url.QueryEscape(sid), url.QueryEscape(bh),
-	)
-
-	util.Debugf("Blogger batchexecute URL: %s", batchURL)
-
-	batchResult := client.Post(g.String(batchURL)).
-		SetHeaders("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8").
-		AddHeaders("X-Same-Domain", "1").
-		AddHeaders("Origin", "https://www.blogger.com").
-		AddHeaders("Referer", bloggerURL).
-		Body(postData).
-		Do()
-	if batchResult.IsErr() {
-		return "", fmt.Errorf("batchexecute request failed: %w", batchResult.Err())
-	}
-	batchResp := batchResult.Ok()
-
-	batchBody, err := io.ReadAll(io.LimitReader(batchResp.Body.Stream(), 5*1024*1024))
-	if err != nil {
-		return "", fmt.Errorf("failed to read batchexecute response: %w", err)
-	}
-
-	if int(batchResp.StatusCode) != http.StatusOK {
-		util.Debugf("Blogger batchexecute failed with status %d, body: %s", batchResp.StatusCode, string(batchBody))
-		return "", fmt.Errorf("batchexecute returned status %d", batchResp.StatusCode)
-	}
-
-	// Step 3: Parse the batchexecute response to find the googlevideo URL
-	videoURL, err := parseBatchexecuteResponse(batchBody)
+	result, err := scraper.ResolveBloggerURLFull(bloggerURL)
 	if err != nil {
 		return "", err
 	}
-
-	util.Debugf("Blogger extract: video URL obtained (%d chars)", len(videoURL))
-	return videoURL, nil
+	return result.VideoURL, nil
 }
 
 // errBloggerVideoUnavailable is returned when Google's batchexecute responds

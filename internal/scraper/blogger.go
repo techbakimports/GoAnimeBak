@@ -19,10 +19,25 @@ import (
 
 var (
 	bloggerTokenRe    = regexp.MustCompile(`token=([A-Za-z0-9_-]+)`)
-	bloggerSIDRe      = regexp.MustCompile(`"FdrFJe":"([^"]+)"`)
-	bloggerBuildRe    = regexp.MustCompile(`"cfb2h":"([^"]+)"`)
-	bloggerATRe       = regexp.MustCompile(`"SNlM0e":"([^"]+)"`)
 	bloggerVideoURLRe = regexp.MustCompile(`https?://[a-z0-9-]+\.googlevideo\.com/videoplayback[^"\\]+`)
+
+	// WIZ session ID: known field name first, then heuristic (large negative integer)
+	bloggerSIDPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`"FdrFJe"\s*:\s*"([^"]+)"`),
+		regexp.MustCompile(`"[A-Za-z0-9_]{4,8}"\s*:\s*"(-\d{15,20})"`),
+	}
+	// WIZ build label: known field name first, then heuristic (boq_ prefix)
+	bloggerBuildPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`"cfb2h"\s*:\s*"([^"]+)"`),
+		regexp.MustCompile(`"[A-Za-z0-9_]{4,8}"\s*:\s*"(boq_[A-Za-z0-9_./-]+)"`),
+	}
+	bloggerATRe = regexp.MustCompile(`"SNlM0e"\s*:\s*"([^"]+)"`)
+
+	// HTML fallbacks
+	bloggerVideoSrcRe  = regexp.MustCompile(`(?i)<(?:video|source)[^>]+src=["']([^"']+)["']`)
+	bloggerOGVideoRe   = regexp.MustCompile(`(?i)<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']`)
+	bloggerOGVideoRe2  = regexp.MustCompile(`(?i)<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:video["']`)
+	bloggerPlayURLRe   = regexp.MustCompile(`"(?:play_url|videoUrl|contentUrl|iurl|url)"\s*:\s*"(https?://[^"]*(?:googlevideo|video)[^"]+)"`)
 )
 
 // BloggerResult holds the resolved video URL and any cookies/headers
@@ -44,6 +59,7 @@ func ResolveBloggerURL(bloggerURL string) (string, error) {
 
 // ResolveBloggerURLFull resolves a Blogger embed URL and returns both the
 // video URL and cookies needed to access googlevideo.com.
+// Tries multiple strategies in order: direct page scan → HTML tags → batchexecute.
 func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	tokenMatch := bloggerTokenRe.FindStringSubmatch(bloggerURL)
 	if len(tokenMatch) < 2 {
@@ -51,7 +67,6 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	}
 	token := tokenMatch[1]
 
-	// Use a cookie jar to collect session cookies
 	jar, _ := newSimpleCookieJar()
 	client := &http.Client{
 		Timeout: 15 * time.Second,
@@ -64,7 +79,6 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 		},
 	}
 
-	// Step 1: Load the Blogger page to extract session params
 	req, err := http.NewRequest("GET", bloggerURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -82,31 +96,81 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 		return nil, fmt.Errorf("failed to read Blogger page: %w", err)
 	}
 	pageText := string(pageBody)
+	cookieStr := collectCookies(jar, "https://www.blogger.com")
 
-	// Try regex fallback first — sometimes the video URL is directly in the page
-	if matches := bloggerVideoURLRe.FindString(pageText); matches != "" {
-		decoded := decodeBloggerURL(matches)
+	// Strategy 1: direct googlevideo URL in page
+	if u := bloggerVideoURLRe.FindString(pageText); u != "" {
+		decoded := decodeBloggerURL(u)
 		util.Debug("Blogger: found video URL directly in page", "url", decoded[:min(len(decoded), 80)])
-		return &BloggerResult{
-			VideoURL: decoded,
-			Cookies:  collectCookies(jar, "https://www.blogger.com"),
-		}, nil
+		return &BloggerResult{VideoURL: decoded, Cookies: cookieStr}, nil
 	}
 
-	// Step 2: Extract session params for batchexecute
-	sidMatch := bloggerSIDRe.FindStringSubmatch(pageText)
-	bhMatch := bloggerBuildRe.FindStringSubmatch(pageText)
-	if len(sidMatch) < 2 || len(bhMatch) < 2 {
-		return nil, errors.New("failed to extract Blogger session params (FdrFJe/cfb2h)")
-	}
-	sid := sidMatch[1]
-	bh := bhMatch[1]
-	at := ""
-	if atMatch := bloggerATRe.FindStringSubmatch(pageText); len(atMatch) >= 2 {
-		at = atMatch[1]
+	// Strategy 2: HTML <video>/<source> tags
+	if m := bloggerVideoSrcRe.FindStringSubmatch(pageText); len(m) >= 2 {
+		u := decodeBloggerURL(m[1])
+		if strings.HasPrefix(u, "http") {
+			util.Debug("Blogger: found video URL in HTML tag", "url", u[:min(len(u), 80)])
+			return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+		}
 	}
 
-	// Step 3: Call batchexecute to get the googlevideo URL
+	// Strategy 3: og:video meta tag
+	for _, re := range []*regexp.Regexp{bloggerOGVideoRe, bloggerOGVideoRe2} {
+		if m := re.FindStringSubmatch(pageText); len(m) >= 2 {
+			u := decodeBloggerURL(m[1])
+			if strings.HasPrefix(u, "http") {
+				util.Debug("Blogger: found video URL in og:video", "url", u[:min(len(u), 80)])
+				return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+			}
+		}
+	}
+
+	// Strategy 4: JSON patterns in page (play_url, videoUrl, etc.)
+	if m := bloggerPlayURLRe.FindStringSubmatch(pageText); len(m) >= 2 {
+		u := decodeBloggerURL(m[1])
+		util.Debug("Blogger: found video URL in JSON pattern", "url", u[:min(len(u), 80)])
+		return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+	}
+
+	// Strategy 5: batchexecute (requires WIZ session params)
+	sid := extractFirst(pageText, bloggerSIDPatterns)
+	bh := extractFirst(pageText, bloggerBuildPatterns)
+	if sid == "" || bh == "" {
+		util.Debug("Blogger: WIZ session params not found, trying video-play endpoint", "sid_found", sid != "", "bh_found", bh != "")
+	} else {
+		at := ""
+		if m := bloggerATRe.FindStringSubmatch(pageText); len(m) >= 2 {
+			at = m[1]
+		}
+
+		if result, err := bloggerBatchExecute(client, token, sid, bh, at, bloggerURL); err == nil {
+			result.Cookies = cookieStr
+			return result, nil
+		} else {
+			util.Debug("Blogger: batchexecute failed, trying video-play fallback", "error", err)
+		}
+	}
+
+	// Strategy 6: video-play.mp4 redirect endpoint (last resort)
+	if result, err := bloggerVideoPlayEndpoint(client, token, cookieStr); err == nil {
+		return result, nil
+	}
+
+	return nil, errors.New("failed to resolve Blogger video: all strategies exhausted")
+}
+
+// extractFirst tries each pattern in order and returns the first match.
+func extractFirst(text string, patterns []*regexp.Regexp) string {
+	for _, re := range patterns {
+		if m := re.FindStringSubmatch(text); len(m) >= 2 {
+			return m[1]
+		}
+	}
+	return ""
+}
+
+// bloggerBatchExecute performs the batchexecute API call to get the video URL.
+func bloggerBatchExecute(client *http.Client, token, sid, bh, at, referer string) (*BloggerResult, error) {
 	inner, err := json.Marshal([]any{token, "", 0})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal inner data: %w", err)
@@ -132,7 +196,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	batchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
 	batchReq.Header.Set("X-Same-Domain", "1")
 	batchReq.Header.Set("Origin", "https://www.blogger.com")
-	batchReq.Header.Set("Referer", bloggerURL)
+	batchReq.Header.Set("Referer", referer)
 	batchReq.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125.0.0.0 Mobile Safari/537.36")
 
 	batchResp, err := client.Do(batchReq)
@@ -145,24 +209,20 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read batchexecute response: %w", err)
 	}
-
 	if batchResp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("batchexecute returned status %d", batchResp.StatusCode)
 	}
 
 	bodyStr := string(batchBody)
 
-	// Collect all cookies from both blogger.com and googlevideo domains
-	cookieStr := collectCookies(jar, "https://www.blogger.com")
-
-	// Try regex on the raw body first
-	if matches := bloggerVideoURLRe.FindString(bodyStr); matches != "" {
-		decoded := decodeBloggerURL(matches)
-		util.Debug("Blogger: resolved via batchexecute", "url", decoded[:min(len(decoded), 80)])
-		return &BloggerResult{VideoURL: decoded, Cookies: cookieStr}, nil
+	// Quick regex scan first
+	if u := bloggerVideoURLRe.FindString(bodyStr); u != "" {
+		decoded := decodeBloggerURL(u)
+		util.Debug("Blogger: resolved via batchexecute (regex)", "url", decoded[:min(len(decoded), 80)])
+		return &BloggerResult{VideoURL: decoded}, nil
 	}
 
-	// Try structured parsing
+	// Structured JSON parse of batchexecute response
 	for _, line := range strings.Split(bodyStr, "\n") {
 		if !strings.Contains(line, "wrb.fr") {
 			continue
@@ -195,14 +255,47 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 					}
 					if urlStr, ok := streamArr[0].(string); ok && strings.Contains(urlStr, "googlevideo.com") {
 						decoded := decodeBloggerURL(urlStr)
-						return &BloggerResult{VideoURL: decoded, Cookies: cookieStr}, nil
+						return &BloggerResult{VideoURL: decoded}, nil
 					}
 				}
 			}
 		}
 	}
 
-	return nil, errors.New("could not extract video URL from Blogger batchexecute response")
+	return nil, errors.New("batchexecute returned no video URL")
+}
+
+// bloggerVideoPlayEndpoint tries the Blogger video-play redirect endpoint.
+// Blogger sometimes serves a direct redirect to the video file from this URL.
+func bloggerVideoPlayEndpoint(client *http.Client, token, cookies string) (*BloggerResult, error) {
+	playURL := "https://www.blogger.com/video-play.mp4?contentId=" + token
+
+	req, err := http.NewRequest("GET", playURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/125.0.0.0 Mobile Safari/537.36")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	finalURL := resp.Request.URL.String()
+	if strings.Contains(finalURL, "googlevideo.com") || strings.Contains(finalURL, ".mp4") {
+		util.Debug("Blogger: resolved via video-play endpoint", "url", finalURL[:min(len(finalURL), 80)])
+		return &BloggerResult{VideoURL: finalURL, Cookies: cookies}, nil
+	}
+
+	// Also scan the response body for video URLs
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
+	if u := bloggerVideoURLRe.FindString(string(body)); u != "" {
+		decoded := decodeBloggerURL(u)
+		return &BloggerResult{VideoURL: decoded, Cookies: cookies}, nil
+	}
+
+	return nil, errors.New("video-play endpoint did not return a video URL")
 }
 
 func decodeBloggerURL(raw string) string {
@@ -230,7 +323,7 @@ func (j *simpleCookieJar) Cookies(u *url.URL) []*http.Cookie {
 	return j.cookies[key]
 }
 
-func collectCookies(jar *simpleCookieJar, baseURL string) string {
+func collectCookies(jar *simpleCookieJar, _ string) string {
 	var parts []string
 	for _, cookies := range jar.cookies {
 		for _, c := range cookies {
