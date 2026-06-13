@@ -135,41 +135,6 @@ func (p *goyabuProvider) FetchStreamURL(_ context.Context, episode *models.Episo
 	return url, nil
 }
 
-// --- HiAnime Provider ---
-
-type hiAnimeProvider struct {
-	sm *scraper.ScraperManager
-}
-
-func init() {
-	RegisterProvider(source.HiAnime, func(sm *scraper.ScraperManager) Provider {
-		return &hiAnimeProvider{sm: sm}
-	})
-}
-
-func (p *hiAnimeProvider) Kind() source.SourceKind { return source.HiAnime }
-func (p *hiAnimeProvider) HasSeasons() bool        { return false }
-
-func (p *hiAnimeProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
-	adapter, err := p.sm.GetScraper(scraper.HiAnimeType)
-	if err != nil {
-		return nil, err
-	}
-	return adapter.GetAnimeEpisodes(anime.URL)
-}
-
-func (p *hiAnimeProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
-	adapter, err := p.sm.GetScraper(scraper.HiAnimeType)
-	if err != nil {
-		return "", err
-	}
-	url, _, err := adapter.GetStreamURL(episode.URL)
-	if err != nil {
-		return "", fmt.Errorf("hianime stream: %w", err)
-	}
-	return url, nil
-}
-
 // --- GogoAnime Provider ---
 
 type gogoAnimeProvider struct {
@@ -205,37 +170,37 @@ func (p *gogoAnimeProvider) FetchStreamURL(_ context.Context, episode *models.Ep
 	return url, nil
 }
 
-// --- AniNeko Provider ---
+// --- AnimesOnlineCC Provider ---
 
-type aniNekoProvider struct {
+type animesOnlineCCProvider struct {
 	sm *scraper.ScraperManager
 }
 
 func init() {
-	RegisterProvider(source.AniNeko, func(sm *scraper.ScraperManager) Provider {
-		return &aniNekoProvider{sm: sm}
+	RegisterProvider(source.AnimesOnlineCC, func(sm *scraper.ScraperManager) Provider {
+		return &animesOnlineCCProvider{sm: sm}
 	})
 }
 
-func (p *aniNekoProvider) Kind() source.SourceKind { return source.AniNeko }
-func (p *aniNekoProvider) HasSeasons() bool        { return false }
+func (p *animesOnlineCCProvider) Kind() source.SourceKind { return source.AnimesOnlineCC }
+func (p *animesOnlineCCProvider) HasSeasons() bool        { return false }
 
-func (p *aniNekoProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
-	adapter, err := p.sm.GetScraper(scraper.AniNekoType)
+func (p *animesOnlineCCProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
+	adapter, err := p.sm.GetScraper(scraper.AnimesOnlineCCType)
 	if err != nil {
 		return nil, err
 	}
 	return adapter.GetAnimeEpisodes(anime.URL)
 }
 
-func (p *aniNekoProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
-	adapter, err := p.sm.GetScraper(scraper.AniNekoType)
+func (p *animesOnlineCCProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
+	adapter, err := p.sm.GetScraper(scraper.AnimesOnlineCCType)
 	if err != nil {
 		return "", err
 	}
 	url, _, err := adapter.GetStreamURL(episode.URL)
 	if err != nil {
-		return "", fmt.Errorf("anineko stream: %w", err)
+		return "", fmt.Errorf("animesonlinecc stream: %w", err)
 	}
 	return url, nil
 }

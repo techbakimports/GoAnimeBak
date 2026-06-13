@@ -36,22 +36,10 @@ var sourceDefs = []SourceDefinition{
 		URLMatchers: []string{"goyabu"},
 	},
 	{
-		Kind:        HiAnime,
-		Explicit:    []string{"HiAnime"},
-		Tags:        []string{"[hianime]"},
-		URLMatchers: []string{"hianimes.se", "hianime.to", "aniwatch.to"},
-	},
-	{
 		Kind:        GogoAnime,
 		Explicit:    []string{"GogoAnime"},
 		Tags:        []string{"[gogoanime]"},
 		URLMatchers: []string{"gogoanime.by", "gogoanime.or.at", "gogoanimes.watch"},
-	},
-	{
-		Kind:        AniNeko,
-		Explicit:    []string{"AniNeko"},
-		Tags:        []string{"[anineko]"},
-		URLMatchers: []string{"anineko.to"},
 	},
 	{
 		Kind:        AllAnime,
@@ -59,6 +47,12 @@ var sourceDefs = []SourceDefinition{
 		Tags:        []string{"[english]"},
 		URLMatchers: []string{"allanime"},
 		ShortID:     true,
+	},
+	{
+		Kind:        AnimesOnlineCC,
+		Explicit:    []string{"AnimesOnlineCC"},
+		Tags:        []string{"[animesonlinecc]"},
+		URLMatchers: []string{"animesonlinecc"},
 	},
 }
 

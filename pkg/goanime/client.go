@@ -221,8 +221,7 @@ func (c *Client) GetAvailableSources() []types.Source {
 		types.SourceAllAnime,
 		types.SourceAnimeFire,
 		types.SourceGoyabu,
-		types.SourceHiAnime,
 		types.SourceGogoAnime,
-		types.SourceAniNeko,
+		types.SourceAnimesOnlineCC,
 	}
 }
