@@ -154,6 +154,11 @@ func (c *Client) GetEpisodeStreamURL(anime *types.Anime, episode *types.Episode,
 		if result.Cookies != "" {
 			metadata["cookie"] = result.Cookies
 		}
+		if result.SourceURL != "" {
+			metadata["referer"] = result.SourceURL
+		} else {
+			metadata["referer"] = "https://www.blogger.com/"
+		}
 	}
 
 	// Validate that the returned URL is actually a playable stream, not an

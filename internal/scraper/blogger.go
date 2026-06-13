@@ -43,8 +43,9 @@ var (
 // BloggerResult holds the resolved video URL and any cookies/headers
 // needed to access it (googlevideo.com requires session cookies).
 type BloggerResult struct {
-	VideoURL string
-	Cookies  string // Cookie header value for the video request
+	VideoURL  string
+	Cookies   string // Cookie header value for the video request
+	SourceURL string // Original Blogger URL — use as Referer when playing
 }
 
 // ResolveBloggerURL extracts the direct googlevideo CDN URL from a Blogger
@@ -102,7 +103,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	if u := bloggerVideoURLRe.FindString(pageText); u != "" {
 		decoded := decodeBloggerURL(u)
 		util.Debug("Blogger: found video URL directly in page", "url", decoded[:min(len(decoded), 80)])
-		return &BloggerResult{VideoURL: decoded, Cookies: cookieStr}, nil
+		return &BloggerResult{VideoURL: decoded, Cookies: cookieStr, SourceURL: bloggerURL}, nil
 	}
 
 	// Strategy 2: HTML <video>/<source> tags
@@ -110,7 +111,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 		u := decodeBloggerURL(m[1])
 		if strings.HasPrefix(u, "http") {
 			util.Debug("Blogger: found video URL in HTML tag", "url", u[:min(len(u), 80)])
-			return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+			return &BloggerResult{VideoURL: u, Cookies: cookieStr, SourceURL: bloggerURL}, nil
 		}
 	}
 
@@ -120,7 +121,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 			u := decodeBloggerURL(m[1])
 			if strings.HasPrefix(u, "http") {
 				util.Debug("Blogger: found video URL in og:video", "url", u[:min(len(u), 80)])
-				return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+				return &BloggerResult{VideoURL: u, Cookies: cookieStr, SourceURL: bloggerURL}, nil
 			}
 		}
 	}
@@ -129,7 +130,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 	if m := bloggerPlayURLRe.FindStringSubmatch(pageText); len(m) >= 2 {
 		u := decodeBloggerURL(m[1])
 		util.Debug("Blogger: found video URL in JSON pattern", "url", u[:min(len(u), 80)])
-		return &BloggerResult{VideoURL: u, Cookies: cookieStr}, nil
+		return &BloggerResult{VideoURL: u, Cookies: cookieStr, SourceURL: bloggerURL}, nil
 	}
 
 	// Strategy 5: batchexecute (requires WIZ session params)
@@ -145,6 +146,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 
 		if result, err := bloggerBatchExecute(client, token, sid, bh, at, bloggerURL); err == nil {
 			result.Cookies = cookieStr
+			result.SourceURL = bloggerURL
 			return result, nil
 		} else {
 			util.Debug("Blogger: batchexecute failed, trying video-play fallback", "error", err)
@@ -153,6 +155,7 @@ func ResolveBloggerURLFull(bloggerURL string) (*BloggerResult, error) {
 
 	// Strategy 6: video-play.mp4 redirect endpoint (last resort)
 	if result, err := bloggerVideoPlayEndpoint(client, token, cookieStr); err == nil {
+		result.SourceURL = bloggerURL
 		return result, nil
 	}
 
