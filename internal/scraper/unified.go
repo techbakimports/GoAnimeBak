@@ -30,10 +30,9 @@ const (
 const (
 	AllAnimeType ScraperType = iota
 	AnimefireType
-	GoyabuType    // PT-BR anime source
-	HiAnimeType   // hianimes.se — aniwatch.to-compatible AJAX API
-	GogoAnimeType // gogoanime.by / gogoanime.or.at — multi-domain cascade
-	AniNekoType   // anineko.to anime source
+	GoyabuType          // PT-BR anime source
+	GogoAnimeType       // gogoanime.by / gogoanime.or.at — multi-domain cascade
+	AnimesOnlineCCType  // PT-BR anime source (animesonlinecc.to)
 )
 
 // UnifiedScraper provides a common interface for all scrapers
@@ -76,9 +75,8 @@ func NewScraperManager() *ScraperManager {
 		manager.scrapers[AllAnimeType] = &AllAnimeAdapter{client: NewAllAnimeClient()}
 		manager.scrapers[AnimefireType] = &AnimefireAdapter{client: NewAnimefireClient()}
 		manager.scrapers[GoyabuType] = &GoyabuAdapter{client: NewGoyabuClient()}
-		manager.scrapers[HiAnimeType] = &HiAnimeAdapter{client: NewHiAnimeClient()}
 		manager.scrapers[GogoAnimeType] = &GogoAnimeAdapter{client: NewGogoAnimeClient()}
-		manager.scrapers[AniNekoType] = &AniNekoAdapter{client: NewAniNekoClient()}
+		manager.scrapers[AnimesOnlineCCType] = &AnimesOnlineCCAdapter{client: NewAnimesOnlineCCClient()}
 
 		globalScraperManager = manager
 	})
@@ -414,7 +412,7 @@ func cleanPTBRTitle(title string) string {
 // tagResults adds language tags and source metadata to results
 func (sm *ScraperManager) tagResults(results []*models.Anime, scraperType ScraperType) {
 	sourceName := sm.getScraperDisplayName(scraperType)
-	isPTBR := scraperType == AnimefireType || scraperType == GoyabuType
+	isPTBR := scraperType == AnimefireType || scraperType == GoyabuType || scraperType == AnimesOnlineCCType
 
 	for _, anime := range results {
 		// Clean PT-BR titles before tagging
@@ -519,14 +517,7 @@ func (sm *ScraperManager) GetScraper(scraperType ScraperType) (UnifiedScraper, e
 // instead of the generic "search timed out". Returns "" for sources that have
 // no probable HTML root (GraphQL endpoints, opaque APIs, etc.).
 func (sm *ScraperManager) getScraperBaseURL(scraperType ScraperType) string {
-	switch scraperType {
-	case HiAnimeType:
-		return HiAnimeBase
-	case AniNekoType:
-		return AniNekoBase
-	default:
-		return ""
-	}
+	return ""
 }
 
 // originProbeBudget bounds how long the post-timeout origin probe is allowed
@@ -543,12 +534,10 @@ func (sm *ScraperManager) getScraperDisplayName(scraperType ScraperType) string 
 		return "Animefire.io"
 	case GoyabuType:
 		return "Goyabu"
-	case HiAnimeType:
-		return "HiAnime"
 	case GogoAnimeType:
 		return "GogoAnime"
-	case AniNekoType:
-		return "AniNeko"
+	case AnimesOnlineCCType:
+		return "AnimesOnlineCC"
 	default:
 		return "Desconhecido"
 	}
@@ -563,12 +552,10 @@ func (sm *ScraperManager) getLanguageTag(scraperType ScraperType) string {
 		return "[PT-BR]"
 	case GoyabuType:
 		return "[PT-BR]"
-	case HiAnimeType:
-		return "[English]"
 	case GogoAnimeType:
 		return "[English]"
-	case AniNekoType:
-		return "[English]"
+	case AnimesOnlineCCType:
+		return "[PT-BR]"
 	default:
 		return "[Unknown]"
 	}
@@ -728,6 +715,11 @@ func (a *GoyabuAdapter) GetStreamURL(episodeURL string, options ...any) (string,
 		if result.Cookies != "" {
 			metadata["cookie"] = result.Cookies
 		}
+		if result.SourceURL != "" {
+			metadata["referer"] = result.SourceURL
+		} else {
+			metadata["referer"] = "https://www.blogger.com/"
+		}
 	}
 
 	return resolvedURL, metadata, nil
@@ -736,28 +728,6 @@ func (a *GoyabuAdapter) GetStreamURL(episodeURL string, options ...any) (string,
 func (a *GoyabuAdapter) GetType() ScraperType {
 	return GoyabuType
 }
-
-// HiAnimeAdapter adapts HiAnimeClient to UnifiedScraper interface
-type HiAnimeAdapter struct {
-	client *HiAnimeClient
-}
-
-func (a *HiAnimeAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
-	return a.client.SearchAnime(query)
-}
-
-func (a *HiAnimeAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
-	return a.client.GetAnimeEpisodes(animeURL)
-}
-
-func (a *HiAnimeAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
-	// episodeURL stores the episode data-id (same pattern as NineAnime)
-	url, err := a.client.GetEpisodeStreamURL(episodeURL)
-	metadata := map[string]string{"source": "hianime"}
-	return url, metadata, err
-}
-
-func (a *HiAnimeAdapter) GetType() ScraperType { return HiAnimeType }
 
 // GogoAnimeAdapter adapts GogoAnimeClient to UnifiedScraper interface
 type GogoAnimeAdapter struct {
@@ -780,23 +750,47 @@ func (a *GogoAnimeAdapter) GetStreamURL(episodeURL string, options ...any) (stri
 
 func (a *GogoAnimeAdapter) GetType() ScraperType { return GogoAnimeType }
 
-// AniNekoAdapter adapts AniNekoClient to UnifiedScraper interface
-type AniNekoAdapter struct {
-	client *AniNekoClient
+// AnimesOnlineCCAdapter adapts AnimesOnlineCCClient to UnifiedScraper interface
+type AnimesOnlineCCAdapter struct {
+	client *AnimesOnlineCCClient
 }
 
-func (a *AniNekoAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
+func (a *AnimesOnlineCCAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
 	return a.client.SearchAnime(query)
 }
 
-func (a *AniNekoAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
+func (a *AnimesOnlineCCAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
 	return a.client.GetAnimeEpisodes(animeURL)
 }
 
-func (a *AniNekoAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
-	url, err := a.client.GetEpisodeStreamURL(episodeURL)
-	metadata := map[string]string{"source": "anineko"}
-	return url, metadata, err
+func (a *AnimesOnlineCCAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
+	rawURL, err := a.client.GetStreamURL(episodeURL)
+	if err != nil {
+		return "", nil, err
+	}
+
+	resolvedURL := rawURL
+	metadata := map[string]string{"source": "animesonlinecc"}
+
+	// Resolve Blogger embed URLs to actual googlevideo CDN URLs
+	lower := strings.ToLower(rawURL)
+	if strings.Contains(lower, "blogger.com") || strings.Contains(lower, "blogspot.com") {
+		result, err := ResolveBloggerURLFull(rawURL)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to resolve Blogger video: %w", err)
+		}
+		resolvedURL = result.VideoURL
+		if result.Cookies != "" {
+			metadata["cookie"] = result.Cookies
+		}
+		if result.SourceURL != "" {
+			metadata["referer"] = result.SourceURL
+		} else {
+			metadata["referer"] = "https://www.blogger.com/"
+		}
+	}
+
+	return resolvedURL, metadata, nil
 }
 
-func (a *AniNekoAdapter) GetType() ScraperType { return AniNekoType }
+func (a *AnimesOnlineCCAdapter) GetType() ScraperType { return AnimesOnlineCCType }

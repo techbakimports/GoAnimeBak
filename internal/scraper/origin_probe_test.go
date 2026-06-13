@@ -177,13 +177,12 @@ func TestEnrichTimeoutWithProbe_NilErrorIsNoop(t *testing.T) {
 func TestScraperManager_BaseURLMapping(t *testing.T) {
 	sm := &ScraperManager{}
 
-	assert.Equal(t, HiAnimeBase, sm.getScraperBaseURL(HiAnimeType))
-	assert.Equal(t, AniNekoBase, sm.getScraperBaseURL(AniNekoType))
-
 	assert.Empty(t, sm.getScraperBaseURL(AllAnimeType),
 		"AllAnime uses a GraphQL endpoint, not a probable HTML root — "+
 			"keep it empty so we don't probe nonsense")
 	assert.Empty(t, sm.getScraperBaseURL(GoyabuType),
 		"Goyabu serves challenge pages on its homepage, so probing it "+
 			"would produce a confusing status — keep empty")
+	assert.Empty(t, sm.getScraperBaseURL(GogoAnimeType),
+		"GogoAnime has no base URL configured for probing")
 }

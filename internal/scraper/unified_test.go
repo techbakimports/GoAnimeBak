@@ -383,11 +383,11 @@ func TestSearchAnime_SlowScraperAlwaysIncluded(t *testing.T) {
 		}
 	}
 
-	slowHiAnime := &MockScraper{
+	slowGogoAnime := &MockScraper{
 		searchFunc: func(query string) ([]*models.Anime, error) {
 			time.Sleep(500 * time.Millisecond) // Significantly slower
 			return []*models.Anime{
-				{Name: "Black Clover", URL: "hianime-bc", MediaType: models.MediaTypeTV},
+				{Name: "Black Clover", URL: "gogoanime-bc", MediaType: models.MediaTypeTV},
 			}, nil
 		},
 	}
@@ -404,8 +404,8 @@ func TestSearchAnime_SlowScraperAlwaysIncluded(t *testing.T) {
 	fast3.scraperType = GoyabuType
 	manager.scrapers[GoyabuType] = fast3
 
-	slowHiAnime.scraperType = HiAnimeType
-	manager.scrapers[HiAnimeType] = slowHiAnime
+	slowGogoAnime.scraperType = GogoAnimeType
+	manager.scrapers[GogoAnimeType] = slowGogoAnime
 
 	results, err := manager.SearchAnime("black clover", nil)
 	require.NoError(t, err)
@@ -413,15 +413,15 @@ func TestSearchAnime_SlowScraperAlwaysIncluded(t *testing.T) {
 	// ALL 4 sources must be present — the slow scraper must NOT be dropped.
 	assert.Len(t, results, 4, "All 4 scraper results must be included")
 
-	// Verify HiAnime result is present
-	hasHiAnime := false
+	// Verify GogoAnime result is present
+	hasGogoAnime := false
 	for _, r := range results {
-		if r.URL == "hianime-bc" {
-			hasHiAnime = true
+		if r.URL == "gogoanime-bc" {
+			hasGogoAnime = true
 			break
 		}
 	}
-	assert.True(t, hasHiAnime, "HiAnime results must be included even though it was slower")
+	assert.True(t, hasGogoAnime, "GogoAnime results must be included even though it was slower")
 }
 
 // =============================================================================
