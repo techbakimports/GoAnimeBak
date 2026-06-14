@@ -672,6 +672,11 @@ func (a *AnimefireAdapter) GetStreamURL(episodeURL string, options ...any) (stri
 		if result.Cookies != "" {
 			metadata["cookie"] = result.Cookies
 		}
+		if result.SourceURL != "" {
+			metadata["referer"] = result.SourceURL
+		} else {
+			metadata["referer"] = "https://www.blogger.com/"
+		}
 	}
 
 	return resolvedURL, metadata, nil
