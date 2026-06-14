@@ -117,7 +117,11 @@ fun PlayerScreen(
         stream.metadata?.get("referer")?.let { referer ->
             if (referer.isNotBlank()) {
                 headers["Referer"] = referer
-                headers["Origin"] = referer.removeSuffix("/")
+                val origin = try {
+                    val uri = android.net.Uri.parse(referer)
+                    "${uri.scheme}://${uri.host}"
+                } catch (_: Exception) { null }
+                if (!origin.isNullOrBlank()) headers["Origin"] = origin
             }
         }
 
