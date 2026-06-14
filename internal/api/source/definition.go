@@ -54,6 +54,12 @@ var sourceDefs = []SourceDefinition{
 		Tags:        []string{"[animesonlinecc]"},
 		URLMatchers: []string{"animesonlinecc"},
 	},
+	{
+		Kind:        AnimeHeaven,
+		Explicit:    []string{"AnimeHeaven"},
+		Tags:        []string{"[animeheaven]"},
+		URLMatchers: []string{"animeheaven.me"},
+	},
 }
 
 // matchNonExplicit checks all match criteria except explicit Source field.

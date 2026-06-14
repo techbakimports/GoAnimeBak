@@ -28,6 +28,7 @@ private val SERVERS = listOf(
     ServerStatus("AnimesOnlineCC",  "https://animesonlinecc.to",     isPtBr = true),
     ServerStatus("AllAnime",        "https://api.allanime.day"),
     ServerStatus("GogoAnime",       "https://gogoanime.by"),
+    ServerStatus("AnimeHeaven",     "https://animeheaven.me"),
 )
 
 class ServerStatusViewModel : ViewModel() {

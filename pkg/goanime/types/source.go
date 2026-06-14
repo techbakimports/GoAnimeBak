@@ -21,6 +21,8 @@ const (
 	SourceGogoAnime
 	// SourceAnimesOnlineCC represents the AnimesOnlineCC source (PT-BR)
 	SourceAnimesOnlineCC
+	// SourceAnimeHeaven represents the AnimeHeaven source (English)
+	SourceAnimeHeaven
 )
 
 // String returns the string representation of the source
@@ -36,6 +38,8 @@ func (s Source) String() string {
 		return "GogoAnime"
 	case SourceAnimesOnlineCC:
 		return "AnimesOnlineCC"
+	case SourceAnimeHeaven:
+		return "AnimeHeaven"
 	default:
 		return "Unknown"
 	}
@@ -54,6 +58,8 @@ func (s Source) ToScraperType() scraper.ScraperType {
 		return scraper.GogoAnimeType
 	case SourceAnimesOnlineCC:
 		return scraper.AnimesOnlineCCType
+	case SourceAnimeHeaven:
+		return scraper.AnimeHeavenType
 	default:
 		return scraper.AllAnimeType
 	}
@@ -74,6 +80,8 @@ func ParseSource(s string) (Source, error) {
 		return SourceGogoAnime, nil
 	case lower == "animesonlinecc" || lower == "animescc":
 		return SourceAnimesOnlineCC, nil
+	case lower == "animeheaven" || lower == "heaven":
+		return SourceAnimeHeaven, nil
 	default:
 		return SourceAllAnime, fmt.Errorf("unknown source: %s", s)
 	}

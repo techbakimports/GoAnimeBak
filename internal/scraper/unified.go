@@ -33,6 +33,7 @@ const (
 	GoyabuType          // PT-BR anime source
 	GogoAnimeType       // gogoanime.by / gogoanime.or.at — multi-domain cascade
 	AnimesOnlineCCType  // PT-BR anime source (animesonlinecc.to)
+	AnimeHeavenType     // EN anime source (animeheaven.me)
 )
 
 // UnifiedScraper provides a common interface for all scrapers
@@ -77,6 +78,7 @@ func NewScraperManager() *ScraperManager {
 		manager.scrapers[GoyabuType] = &GoyabuAdapter{client: NewGoyabuClient()}
 		manager.scrapers[GogoAnimeType] = &GogoAnimeAdapter{client: NewGogoAnimeClient()}
 		manager.scrapers[AnimesOnlineCCType] = &AnimesOnlineCCAdapter{client: NewAnimesOnlineCCClient()}
+		manager.scrapers[AnimeHeavenType] = &AnimeHeavenAdapter{client: NewAnimeHeavenClient()}
 
 		globalScraperManager = manager
 	})
@@ -538,6 +540,8 @@ func (sm *ScraperManager) getScraperDisplayName(scraperType ScraperType) string 
 		return "GogoAnime"
 	case AnimesOnlineCCType:
 		return "AnimesOnlineCC"
+	case AnimeHeavenType:
+		return "AnimeHeaven"
 	default:
 		return "Desconhecido"
 	}
@@ -556,6 +560,8 @@ func (sm *ScraperManager) getLanguageTag(scraperType ScraperType) string {
 		return "[English]"
 	case AnimesOnlineCCType:
 		return "[PT-BR]"
+	case AnimeHeavenType:
+		return "[English]"
 	default:
 		return "[Unknown]"
 	}
@@ -799,3 +805,30 @@ func (a *AnimesOnlineCCAdapter) GetStreamURL(episodeURL string, options ...any) 
 }
 
 func (a *AnimesOnlineCCAdapter) GetType() ScraperType { return AnimesOnlineCCType }
+
+// AnimeHeavenAdapter adapts AnimeHeavenClient to UnifiedScraper interface
+type AnimeHeavenAdapter struct {
+	client *AnimeHeavenClient
+}
+
+func (a *AnimeHeavenAdapter) SearchAnime(query string, options ...any) ([]*models.Anime, error) {
+	return a.client.SearchAnime(query)
+}
+
+func (a *AnimeHeavenAdapter) GetAnimeEpisodes(animeURL string) ([]models.Episode, error) {
+	return a.client.GetAnimeEpisodes(animeURL)
+}
+
+func (a *AnimeHeavenAdapter) GetStreamURL(episodeURL string, options ...any) (string, map[string]string, error) {
+	videoURL, err := a.client.GetStreamURL(episodeURL)
+	if err != nil {
+		return "", nil, err
+	}
+	metadata := map[string]string{
+		"source":  "animeheaven",
+		"referer": AnimeHeavenBase + "/gate.php",
+	}
+	return videoURL, metadata, nil
+}
+
+func (a *AnimeHeavenAdapter) GetType() ScraperType { return AnimeHeavenType }

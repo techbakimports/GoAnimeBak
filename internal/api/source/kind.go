@@ -14,6 +14,7 @@ const (
 	Goyabu         SourceKind = "Goyabu"
 	GogoAnime      SourceKind = "GogoAnime"
 	AnimesOnlineCC SourceKind = "AnimesOnlineCC"
+	AnimeHeaven    SourceKind = "AnimeHeaven"
 
 	// Unknown is returned when no definition matches. Downstream treats it as
 	// best-effort AllAnime, but logs a warning for investigation.
@@ -33,4 +34,5 @@ var scraperTypeMap = map[SourceKind]scraper.ScraperType{
 	Goyabu:         scraper.GoyabuType,
 	GogoAnime:      scraper.GogoAnimeType,
 	AnimesOnlineCC: scraper.AnimesOnlineCCType,
+	AnimeHeaven:    scraper.AnimeHeavenType,
 }

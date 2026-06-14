@@ -205,4 +205,37 @@ func (p *animesOnlineCCProvider) FetchStreamURL(_ context.Context, episode *mode
 	return url, nil
 }
 
+// --- AnimeHeaven Provider ---
 
+type animeHeavenProvider struct {
+	sm *scraper.ScraperManager
+}
+
+func init() {
+	RegisterProvider(source.AnimeHeaven, func(sm *scraper.ScraperManager) Provider {
+		return &animeHeavenProvider{sm: sm}
+	})
+}
+
+func (p *animeHeavenProvider) Kind() source.SourceKind { return source.AnimeHeaven }
+func (p *animeHeavenProvider) HasSeasons() bool        { return false }
+
+func (p *animeHeavenProvider) FetchEpisodes(_ context.Context, anime *models.Anime) ([]models.Episode, error) {
+	adapter, err := p.sm.GetScraper(scraper.AnimeHeavenType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.GetAnimeEpisodes(anime.URL)
+}
+
+func (p *animeHeavenProvider) FetchStreamURL(_ context.Context, episode *models.Episode, _ *models.Anime, _ string) (string, error) {
+	adapter, err := p.sm.GetScraper(scraper.AnimeHeavenType)
+	if err != nil {
+		return "", err
+	}
+	url, _, err := adapter.GetStreamURL(episode.URL)
+	if err != nil {
+		return "", fmt.Errorf("animeheaven stream: %w", err)
+	}
+	return url, nil
+}

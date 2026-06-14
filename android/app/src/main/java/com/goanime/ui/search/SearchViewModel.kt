@@ -41,6 +41,7 @@ private val BUILT_IN_SOURCES = listOf(
     SourceChip("AnimesOnlineCC", "AnimesOnlineCC 🇧🇷"),
     SourceChip("AllAnime", "AllAnime"),
     SourceChip("GogoAnime", "GogoAnime"),
+    SourceChip("AnimeHeaven", "AnimeHeaven"),
 )
 
 @HiltViewModel
