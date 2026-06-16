@@ -120,7 +120,7 @@ func FetchAnimeDetails(anime *models.Anime) {
 			Type(spinner.Dots).
 			Action(func() {
 				// For FlixHQ movies/TV shows, use TMDB enrichment instead of AniList
-				if anime.Source == "FlixHQ" || anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV {
+				if isMovieOrTVContent(anime) {
 					util.Debugf("Skipping AniList enrichment for movie/TV content: %s (source: %s)", anime.Name, anime.Source)
 					if err := api.FetchAnimeDetails(anime); err != nil {
 						util.Debugf("Failed to enrich content with TMDB: %v", err)
@@ -130,8 +130,8 @@ func FetchAnimeDetails(anime *models.Anime) {
 				}
 
 				// Skip AniList enrichment if already done during search (enrichAnimeData)
-				needsAniList := anime.AnilistID <= 0 || anime.MalID <= 0 || anime.ImageURL == ""
-				needsSourceDetails := anime.Source == "AllAnime" && len(anime.URL) > 20 && strings.Contains(anime.URL, "allanime.to")
+				needsAniList := needsAniListEnrichment(anime)
+				needsSourceDetails := needsAllAnimeSourceDetails(anime)
 
 				switch {
 				case needsAniList && needsSourceDetails:
@@ -200,7 +200,7 @@ func GetAnimeEpisodes(anime *models.Anime) ([]models.Episode, error) {
 
 	// For FlixHQ content, don't wrap in spinner here because GetFlixHQEpisodes
 	// has UI interactions (season selection) and handles its own spinners for network calls
-	if anime.Source == "FlixHQ" || anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV {
+	if isMovieOrTVContent(anime) {
 		episodes, fetchErr = api.GetAnimeEpisodesEnhanced(anime)
 	} else {
 		// Use spinner while fetching episodes for non-FlixHQ content
@@ -254,4 +254,25 @@ func GetAnimeEpisodesLegacy(url string) ([]models.Episode, error) {
 
 	util.Debugf("[PERF] GetAnimeEpisodesLegacy completed in %v", time.Since(episodesStart))
 	return episodes, nil
+}
+
+// isMovieOrTVContent reports whether the anime should be treated as
+// FlixHQ-style movie/TV content, which uses TMDB enrichment and its own
+// season-selection UI instead of the AllAnime/AniList anime flow.
+func isMovieOrTVContent(anime *models.Anime) bool {
+	return anime.Source == "FlixHQ" || anime.MediaType == models.MediaTypeMovie || anime.MediaType == models.MediaTypeTV
+}
+
+// needsAniListEnrichment reports whether the anime is missing AniList/MAL
+// metadata that enrichAnimeData would normally have already filled in
+// during search.
+func needsAniListEnrichment(anime *models.Anime) bool {
+	return anime.AnilistID <= 0 || anime.MalID <= 0 || anime.ImageURL == ""
+}
+
+// needsAllAnimeSourceDetails reports whether the anime came from AllAnime
+// with a real (non-placeholder) URL, meaning source-side detail fetching is
+// worthwhile.
+func needsAllAnimeSourceDetails(anime *models.Anime) bool {
+	return anime.Source == "AllAnime" && len(anime.URL) > 20 && strings.Contains(anime.URL, "allanime.to")
 }

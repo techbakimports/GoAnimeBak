@@ -40,3 +40,27 @@ func TestFindEpisodeByNumber_NotFound(t *testing.T) {
 	assert.Error(t, err, "expected error for non-existent episode number")
 	t.Logf("Got expected error: %v", err)
 }
+
+// TestFindEpisodeByNumber_Found verifies the happy path: when the requested
+// episode number exists, it is returned directly without ever touching
+// episodeFallback (which would otherwise open an interactive TUI).
+func TestFindEpisodeByNumber_Found(t *testing.T) {
+	orig := episodeFallback
+	episodeFallback = func(_ []models.Episode) (string, string, int, error) {
+		t.Fatal("episodeFallback should not be called when the episode is found")
+		return "", "", 0, nil
+	}
+	defer func() { episodeFallback = orig }()
+
+	episodes := []models.Episode{
+		{URL: "https://example.com/ep1", Number: "1"},
+		{URL: "https://example.com/ep2", Number: "2"},
+	}
+
+	url, numStr, num, err := FindEpisodeByNumber(episodes, 2)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "https://example.com/ep2", url)
+	assert.Equal(t, "2", numStr)
+	assert.Equal(t, 2, num)
+}

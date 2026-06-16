@@ -57,10 +57,9 @@ func HandlePlaybackMode(animeName string) {
 		var episodes []models.Episode
 		var epErr error
 
-		needsInteractiveEpisodes := anime.MediaType == models.MediaTypeMovie ||
-			anime.MediaType == models.MediaTypeTV
+		needsInteractive := needsInteractiveEpisodes(anime.MediaType)
 
-		if needsInteractiveEpisodes {
+		if needsInteractive {
 			// Sequential: details first (spinner), then episodes (may show fuzzyfinder)
 			parallelTimer := util.StartTimer("FetchDetails+Episodes:Sequential")
 
@@ -124,7 +123,7 @@ func HandlePlaybackMode(animeName string) {
 		// Determine if this is a movie or series using the media type first,
 		// then fall back to episode count for anime sources that don't set media type.
 		totalEpisodes := len(episodes)
-		series := !anime.IsMovie() && totalEpisodes > 1
+		series := isSeriesPlayback(anime, totalEpisodes)
 		var playbackErr error
 
 		playbackTimer := util.StartTimer("Playback:Handle")
@@ -145,4 +144,19 @@ func HandlePlaybackMode(animeName string) {
 		// Normal exit or other errors
 		break
 	}
+}
+
+// needsInteractiveEpisodes reports whether episode fetching for this media
+// type can surface an interactive selector (fuzzyfinder season picker), in
+// which case it must run sequentially after FetchAnimeDetails rather than
+// in parallel — two Bubble Tea/fuzzyfinder programs fighting over the
+// terminal at once corrupts state.
+func needsInteractiveEpisodes(mediaType models.MediaType) bool {
+	return mediaType == models.MediaTypeMovie || mediaType == models.MediaTypeTV
+}
+
+// isSeriesPlayback reports whether the result set should be routed to the
+// multi-episode series player rather than the single movie player.
+func isSeriesPlayback(anime *models.Anime, totalEpisodes int) bool {
+	return !anime.IsMovie() && totalEpisodes > 1
 }

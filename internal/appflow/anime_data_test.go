@@ -80,6 +80,78 @@ func TestSearchAnimeEnhanced_InvalidName(t *testing.T) {
 	}
 }
 
+func TestIsMovieOrTVContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		anime    *models.Anime
+		expected bool
+	}{
+		{"FlixHQ source", &models.Anime{Source: "FlixHQ"}, true},
+		{"movie media type", &models.Anime{MediaType: models.MediaTypeMovie}, true},
+		{"tv media type", &models.Anime{MediaType: models.MediaTypeTV}, true},
+		{"anime media type from another source", &models.Anime{Source: "AllAnime", MediaType: models.MediaTypeAnime}, false},
+		{"empty anime", &models.Anime{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isMovieOrTVContent(tt.anime))
+		})
+	}
+}
+
+func TestNeedsAniListEnrichment(t *testing.T) {
+	tests := []struct {
+		name     string
+		anime    *models.Anime
+		expected bool
+	}{
+		{"missing everything", &models.Anime{}, true},
+		{"missing AnilistID", &models.Anime{MalID: 1, ImageURL: "x"}, true},
+		{"missing MalID", &models.Anime{AnilistID: 1, ImageURL: "x"}, true},
+		{"missing ImageURL", &models.Anime{AnilistID: 1, MalID: 1}, true},
+		{"fully enriched", &models.Anime{AnilistID: 1, MalID: 1, ImageURL: "x"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, needsAniListEnrichment(tt.anime))
+		})
+	}
+}
+
+func TestNeedsAllAnimeSourceDetails(t *testing.T) {
+	tests := []struct {
+		name     string
+		anime    *models.Anime
+		expected bool
+	}{
+		{
+			name:     "AllAnime with a real allanime.to URL",
+			anime:    &models.Anime{Source: "AllAnime", URL: "https://allanime.to/anime/some-id-1234"},
+			expected: true,
+		},
+		{
+			name:     "AllAnime with a placeholder URL too short to be real",
+			anime:    &models.Anime{Source: "AllAnime", URL: "short"},
+			expected: false,
+		},
+		{
+			name:     "AllAnime with a long URL on a different domain",
+			anime:    &models.Anime{Source: "AllAnime", URL: "https://example.com/anime/some-id-1234"},
+			expected: false,
+		},
+		{
+			name:     "non-AllAnime source",
+			anime:    &models.Anime{Source: "AnimeFire", URL: "https://allanime.to/anime/some-id-1234"},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, needsAllAnimeSourceDetails(tt.anime))
+		})
+	}
+}
+
 // TestGetAnimeEpisodes_NilAnime verifies graceful handling of nil anime.
 func TestGetAnimeEpisodes_NilAnime(t *testing.T) {
 	if testing.Short() {
