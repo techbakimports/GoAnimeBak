@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/alvarorichard/Goanime/internal/models"
@@ -18,7 +19,7 @@ var (
 	ahSearchResultRe = regexp.MustCompile(`<a href='(anime\.php\?[a-z0-9]+)'><img class='coverimg'[^>]+alt='([^']+)'`)
 	ahGateaRe        = regexp.MustCompile(`onclick='gatea\("([a-f0-9]{32})"\)'`)
 	ahEpNumRe        = regexp.MustCompile(`<div class='watch2 bc[^']*'>(\d+)</div>`)
-	ahStreamRe       = regexp.MustCompile(`<source src='(https://[a-z]+\.animeheaven\.me/video\.mp4\?[a-f0-9&]+)'`)
+	ahStreamRe       = regexp.MustCompile(`<source src='(https://[a-z0-9\-]+\.animeheaven\.me/video\.mp4\?[^'"]+)'`)
 )
 
 type AnimeHeavenClient struct {
@@ -69,11 +70,18 @@ func (c *AnimeHeavenClient) GetAnimeEpisodes(animeURL string) ([]models.Episode,
 	episodes := make([]models.Episode, 0, len(hashes))
 	for i, h := range hashes {
 		num := ""
+		numInt := 0
 		if i < len(numbers) {
 			num = numbers[i][1]
+			numInt, _ = strconv.Atoi(num)
+		}
+		if num == "" {
+			numInt = i + 1
+			num = strconv.Itoa(numInt)
 		}
 		episodes = append(episodes, models.Episode{
 			Number: num,
+			Num:    numInt,
 			URL:    AnimeHeavenBase + "/gate.php#" + h[1],
 		})
 	}

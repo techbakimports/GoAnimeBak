@@ -185,4 +185,11 @@ func TestScraperManager_BaseURLMapping(t *testing.T) {
 			"would produce a confusing status — keep empty")
 	assert.Empty(t, sm.getScraperBaseURL(GogoAnimeType),
 		"GogoAnime has no base URL configured for probing")
+
+	assert.Equal(t, AnimefireBase, sm.getScraperBaseURL(AnimefireType),
+		"Animefire has a plain-HTTP homepage — the post-timeout probe must use it")
+	assert.Equal(t, AnimeHeavenBase, sm.getScraperBaseURL(AnimeHeavenType),
+		"AnimeHeaven has a plain-HTTP homepage — the post-timeout probe must use it")
+	assert.Equal(t, animesOnlineCCBase, sm.getScraperBaseURL(AnimesOnlineCCType),
+		"AnimesOnlineCC has a plain-HTTP homepage — the post-timeout probe must use it")
 }

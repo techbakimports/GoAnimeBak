@@ -517,9 +517,22 @@ func (sm *ScraperManager) GetScraper(scraperType ScraperType) (UnifiedScraper, e
 // getScraperBaseURL returns the homepage URL for sources we can reach over plain
 // HTTP — used by the post-timeout probe to surface "Cloudflare 522/origin down"
 // instead of the generic "search timed out". Returns "" for sources that have
-// no probable HTML root (GraphQL endpoints, opaque APIs, etc.).
+// no probable HTML root (GraphQL endpoints, opaque APIs, multi-domain cascades,
+// or homepages that serve challenge pages and would produce a misleading probe).
 func (sm *ScraperManager) getScraperBaseURL(scraperType ScraperType) string {
-	return ""
+	switch scraperType {
+	case AnimefireType:
+		return AnimefireBase
+	case AnimesOnlineCCType:
+		return animesOnlineCCBase
+	case AnimeHeavenType:
+		return AnimeHeavenBase
+	default:
+		// AllAnime: GraphQL endpoint, not a probable HTML root.
+		// Goyabu: homepage serves challenge pages — probing it would mislead.
+		// GogoAnime: multi-domain cascade, no single fixed base.
+		return ""
+	}
 }
 
 // originProbeBudget bounds how long the post-timeout origin probe is allowed
