@@ -18,7 +18,6 @@ require (
 	charm.land/lipgloss/v2 v2.0.3
 	charm.land/log/v2 v2.0.0
 	github.com/disintegration/gift v1.2.1
-	github.com/enetx/g v1.0.224
 	github.com/enetx/surf v1.0.199
 	github.com/lrstanley/go-ytdlp v1.3.5
 	github.com/tr1xem/go-discordrpc v1.0.0
@@ -36,6 +35,7 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/enetx/g v1.0.224 // indirect
 	github.com/enetx/http v1.0.28 // indirect
 	github.com/enetx/http2 v1.0.26 // indirect
 	github.com/enetx/http3 v1.0.7 // indirect
