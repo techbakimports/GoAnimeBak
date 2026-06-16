@@ -7,6 +7,7 @@ package gobridge
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	goanime "github.com/alvarorichard/Goanime/pkg/goanime"
@@ -79,6 +80,79 @@ type StreamResult struct {
 type SourceResult struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+// FallbackEpisodesResult is returned by GetEpisodesWithFallback.
+type FallbackEpisodesResult struct {
+	Episodes  []EpisodeResult `json:"episodes"`
+	Source    string          `json:"source"`
+	AnimeURL  string          `json:"animeUrl"`
+	AnimeName string          `json:"animeName"`
+}
+
+// defaultSourceOrder is the priority used when no explicit list is given.
+var defaultSourceOrder = []types.Source{
+	types.SourceAllAnime,
+	types.SourceAnimeFire,
+	types.SourceGoyabu,
+	types.SourceGogoAnime,
+	types.SourceAnimesOnlineCC,
+	types.SourceAnimeHeaven,
+}
+
+// convertEpisode maps a types.Episode to the bridge EpisodeResult.
+func convertEpisode(ep *types.Episode) EpisodeResult {
+	r := EpisodeResult{
+		Number:   ep.Number,
+		Num:      ep.Num,
+		URL:      ep.URL,
+		Aired:    ep.Aired,
+		Duration: ep.Duration,
+		IsFiller: ep.IsFiller,
+		IsRecap:  ep.IsRecap,
+		Synopsis: ep.Synopsis,
+		SeasonID: ep.SeasonID,
+	}
+	if ep.Title != nil {
+		r.Title = ep.Title.English
+		if r.Title == "" {
+			r.Title = ep.Title.Romaji
+		}
+		r.TitleJP = ep.Title.Japanese
+	}
+	if ep.SkipTimes != nil {
+		if ep.SkipTimes.Op != nil {
+			r.SkipOpStart = ep.SkipTimes.Op.Start
+			r.SkipOpEnd = ep.SkipTimes.Op.End
+		}
+		if ep.SkipTimes.Ed != nil {
+			r.SkipEdStart = ep.SkipTimes.Ed.Start
+			r.SkipEdEnd = ep.SkipTimes.Ed.End
+		}
+	}
+	return r
+}
+
+// parseSources parses a JSON array of source name strings into []types.Source.
+// Returns defaultSourceOrder on empty input or parse failure.
+func parseSources(sourcesJSON string) []types.Source {
+	if sourcesJSON == "" || sourcesJSON == "[]" || sourcesJSON == "null" {
+		return defaultSourceOrder
+	}
+	var names []string
+	if err := json.Unmarshal([]byte(sourcesJSON), &names); err != nil || len(names) == 0 {
+		return defaultSourceOrder
+	}
+	result := make([]types.Source, 0, len(names))
+	for _, n := range names {
+		if s, err := types.ParseSource(n); err == nil {
+			result = append(result, s)
+		}
+	}
+	if len(result) == 0 {
+		return defaultSourceOrder
+	}
+	return result
 }
 
 // --- Exported Bridge Functions ---
@@ -162,37 +236,9 @@ func GetEpisodes(animeURL string, source string) (string, error) {
 		return "", fmt.Errorf("get episodes failed: %w", err)
 	}
 
-	out := make([]EpisodeResult, 0, len(episodes))
-	for _, ep := range episodes {
-		r := EpisodeResult{
-			Number:   ep.Number,
-			Num:      ep.Num,
-			URL:      ep.URL,
-			Aired:    ep.Aired,
-			Duration: ep.Duration,
-			IsFiller: ep.IsFiller,
-			IsRecap:  ep.IsRecap,
-			Synopsis: ep.Synopsis,
-			SeasonID: ep.SeasonID,
-		}
-		if ep.Title != nil {
-			r.Title = ep.Title.English
-			if r.Title == "" {
-				r.Title = ep.Title.Romaji
-			}
-			r.TitleJP = ep.Title.Japanese
-		}
-		if ep.SkipTimes != nil {
-			if ep.SkipTimes.Op != nil {
-				r.SkipOpStart = ep.SkipTimes.Op.Start
-				r.SkipOpEnd = ep.SkipTimes.Op.End
-			}
-			if ep.SkipTimes.Ed != nil {
-				r.SkipEdStart = ep.SkipTimes.Ed.Start
-				r.SkipEdEnd = ep.SkipTimes.Ed.End
-			}
-		}
-		out = append(out, r)
+	out := make([]EpisodeResult, len(episodes))
+	for i, ep := range episodes {
+		out[i] = convertEpisode(ep)
 	}
 
 	data, err := json.Marshal(out)
@@ -274,6 +320,153 @@ func GetStreamURL(animeJSON string, episodeJSON string, quality string, mode str
 	return string(data), nil
 }
 
+// GetEpisodesWithFallback searches for animeName across sources in priority order
+// and returns episodes from the first source that delivers results.
+// sourcesJSON: JSON array like ["AnimeFire","Goyabu","AllAnime"], or "" for default order.
+// Returns a JSON FallbackEpisodesResult that includes which source was used.
+func GetEpisodesWithFallback(animeName string, sourcesJSON string) (string, error) {
+	if animeName == "" {
+		return "", fmt.Errorf("animeName cannot be empty")
+	}
+
+	sources := parseSources(sourcesJSON)
+	c := getClient()
+	var errs []string
+
+	for _, src := range sources {
+		srcPtr := src
+		results, err := c.SearchAnime(animeName, &srcPtr)
+		if err != nil || len(results) == 0 {
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s search: %v", src, err))
+			} else {
+				errs = append(errs, fmt.Sprintf("%s: no results", src))
+			}
+			continue
+		}
+
+		anime := results[0]
+		episodes, err := c.GetAnimeEpisodes(anime.URL, src)
+		if err != nil || len(episodes) == 0 {
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s episodes: %v", src, err))
+			} else {
+				errs = append(errs, fmt.Sprintf("%s: no episodes", src))
+			}
+			continue
+		}
+
+		out := make([]EpisodeResult, len(episodes))
+		for i, ep := range episodes {
+			out[i] = convertEpisode(ep)
+		}
+
+		result := FallbackEpisodesResult{
+			Episodes:  out,
+			Source:    src.String(),
+			AnimeURL:  anime.URL,
+			AnimeName: anime.Name,
+		}
+		data, err := json.Marshal(result)
+		if err != nil {
+			return "", fmt.Errorf("json marshal failed: %w", err)
+		}
+		return string(data), nil
+	}
+
+	return "", fmt.Errorf("all sources failed: %s", strings.Join(errs, "; "))
+}
+
+// GetStreamURLWithFallback tries to get a stream URL from the primary source
+// (encoded in animeJSON) and falls back through fallbackSourcesJSON on failure.
+// animeJSON: {"url":"...", "source":"...", "name":"..."}
+// episodeJSON: {"number":"...", "url":"..."}
+// fallbackSourcesJSON: JSON array like ["AnimeFire","Goyabu"] tried in order after primary fails.
+// Returns a JSON StreamResult.
+func GetStreamURLWithFallback(animeJSON, episodeJSON, quality, mode, fallbackSourcesJSON string) (string, error) {
+	// Try primary first
+	if result, err := GetStreamURL(animeJSON, episodeJSON, quality, mode); err == nil {
+		return result, nil
+	}
+
+	var animeInput struct {
+		Name   string `json:"name"`
+		Source string `json:"source"`
+	}
+	var episodeInput struct {
+		Number string `json:"number"`
+	}
+	if err := json.Unmarshal([]byte(animeJSON), &animeInput); err != nil || animeInput.Name == "" {
+		return "", fmt.Errorf("primary source failed and animeJSON is missing name field")
+	}
+	if err := json.Unmarshal([]byte(episodeJSON), &episodeInput); err != nil || episodeInput.Number == "" {
+		return "", fmt.Errorf("primary source failed and episodeJSON is missing number field")
+	}
+
+	fallbackSources := parseSources(fallbackSourcesJSON)
+	c := getClient()
+	var errs []string
+
+	for _, src := range fallbackSources {
+		if src.String() == animeInput.Source {
+			continue // already failed
+		}
+
+		srcPtr := src
+		searchResults, err := c.SearchAnime(animeInput.Name, &srcPtr)
+		if err != nil || len(searchResults) == 0 {
+			errs = append(errs, fmt.Sprintf("%s: search failed", src))
+			continue
+		}
+
+		fallbackAnime := searchResults[0]
+		episodes, err := c.GetAnimeEpisodes(fallbackAnime.URL, src)
+		if err != nil || len(episodes) == 0 {
+			errs = append(errs, fmt.Sprintf("%s: no episodes", src))
+			continue
+		}
+
+		var matchedEp *types.Episode
+		for _, ep := range episodes {
+			if ep.Number == episodeInput.Number {
+				matchedEp = ep
+				break
+			}
+		}
+		if matchedEp == nil {
+			errs = append(errs, fmt.Sprintf("%s: episode %s not found", src, episodeInput.Number))
+			continue
+		}
+
+		fbAnimeBytes, err := json.Marshal(map[string]string{
+			"url":    fallbackAnime.URL,
+			"source": src.String(),
+			"name":   fallbackAnime.Name,
+		})
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: marshal anime: %v", src, err))
+			continue
+		}
+		fbEpBytes, err := json.Marshal(map[string]string{
+			"number":   matchedEp.Number,
+			"url":      matchedEp.URL,
+			"seasonId": matchedEp.SeasonID,
+		})
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: marshal episode: %v", src, err))
+			continue
+		}
+
+		if result, err := GetStreamURL(string(fbAnimeBytes), string(fbEpBytes), quality, mode); err == nil {
+			return result, nil
+		} else {
+			errs = append(errs, fmt.Sprintf("%s: stream: %v", src, err))
+		}
+	}
+
+	return "", fmt.Errorf("all fallback sources failed: %s", strings.Join(errs, "; "))
+}
+
 // GetSources returns a JSON array of available sources.
 // This function never fails.
 func GetSources() string {
@@ -288,7 +481,10 @@ func GetSources() string {
 		})
 	}
 
-	data, _ := json.Marshal(out)
+	data, err := json.Marshal(out)
+	if err != nil {
+		return "[]"
+	}
 	return string(data)
 }
 
