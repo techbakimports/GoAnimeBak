@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-GoAnime is a CLI text-based user interface (TUI) written in Go that allows users to search for anime and play/download episodes directly in mpv. The application scrapes data from multiple streaming sources (AllAnime, AnimeFire, SuperFlix, FlixHQ, and others) with automatic fallback support.
+GoAnime is a CLI text-based user interface (TUI) written in Go that allows users to search for anime and play/download episodes directly in mpv. The application scrapes anime from multiple streaming sources (AllAnime, AnimeFire, Goyabu, GogoAnime, AnimesOnlineCC, AnimeHeaven) with automatic fallback support, and enriches movie/TV metadata via SuperFlix, TMDB, and OMDB.
 
 **Repository**: github.com/alvarorichard/Goanime  
 **Language**: Go 1.26.2  
@@ -116,7 +116,7 @@ User Input (CLI)
     ↓
 [api] - Fetches anime/episode data and metadata
     ↓
-[scraper] - Multi-source web scraping (AllAnime, AnimeFire, SuperFlix, etc.)
+[scraper] - Multi-source web scraping (AllAnime, AnimeFire, Goyabu, GogoAnime, AnimesOnlineCC, AnimeHeaven)
     ↓
 [models] - Core data structures (Anime, Episode, URLs)
     ↓
@@ -165,19 +165,20 @@ Fetches and manages anime/episode metadata from external APIs:
 
 #### internal/scraper/
 Multi-source web scraping implementations:
-- **unified.go**: Unified scraper interface (UnifiedScraper) that all sources implement
-- **allanime.go**: AllAnime.day scraper (GraphQL API-based)
-- **animefire.go**: Animefire.io scraper (HTML parsing)
-- **superflix.go**: SuperFlix scraper (movie/TV sources)
-- **flixhq.go**, **sflix.go**: FlixHQ and SFlix implementations
-- **nineanime.go**: 9Anime scraper
-- **animedrive.go**: AnimeDrive scraper
-- **goyabu.go**: GoYabu scraper
-- **media_manager.go**: Manages movie vs. TV show scraping logic
+- **unified.go**: Unified scraper interface (UnifiedScraper) that all sources implement; also holds the ScraperManager (parallel search, circuit breaker wiring, source display/language metadata)
+- **allanime.go**: AllAnime.day scraper (GraphQL API-based, English)
+- **animefire.go**: Animefire.io scraper (HTML parsing, PT-BR)
+- **goyabu.go**: Goyabu scraper (PT-BR)
+- **gogoanime.go**: GogoAnime scraper (multi-domain cascade, English)
+- **animesonlinecc.go**: AnimesOnlineCC scraper (PT-BR)
+- **animeheaven.go**: AnimeHeaven scraper (English)
+- **blogger.go**: Resolves Blogger-hosted video URLs used as a stream backend by some sources
 - **source_circuit.go**: Circuit breaker pattern for source health management
 - **source_health.go**: Tracks source availability and fallback logic
-- **source_diagnostic.go**: Debugging and diagnostics for source issues
-- **ssrf.go**: SSRF attack prevention
+- **source_diagnostic.go**: Structured error diagnostics (SourceDiagnostic) and the post-timeout origin probe that distinguishes "site is down" (Cloudflare 5xx) from "site is just slow"
+- **ssrf.go**: SSRF dial-level protection (isDisallowedIP/safeDialFunc) — duplicated from internal/api to avoid an import cycle
+
+Movie/TV metadata enrichment (SuperFlix, TMDB, OMDB) lives in internal/api/movie/, not internal/scraper/ — it enriches results rather than acting as a primary anime source.
 
 #### internal/models/
 Core data structures:
@@ -220,15 +221,15 @@ Public library API exposing core scraping/searching functionality:
 ## Key Architectural Patterns
 
 ### Multi-Source Provider System
-Sources can be temporarily disabled (commented out with /* */ blocks) in the provider registry. The source_circuit.go and source_health.go modules track source availability and implement fallback logic. When a source fails, the system automatically tries the next available source.
+Each source self-registers a Provider via `RegisterProvider()` in its `init()` (see internal/api/providers/source_providers.go). internal/api/source/definition.go holds the ordered `sourceDefs` list that resolves an anime to its source (explicit field → MediaType → name tag → URL pattern → short-ID heuristic, in that priority order). Adding a source means adding one `SourceDefinition` entry plus one Provider implementation — no changes to the resolution logic itself. The source_circuit.go and source_health.go modules track source availability and implement fallback logic; when a source fails, the system automatically tries the next available source.
 
-**Provider Registry**: internal/api/providers/registry.go contains the authoritative list of enabled sources.
+**Provider Registry**: internal/api/providers/registry.go is the generic factory/cache registry; internal/api/source/definition.go is the authoritative list of currently enabled anime sources (AllAnime, AnimeFire, Goyabu, GogoAnime, AnimesOnlineCC, AnimeHeaven).
 
 ### Unified Scraper Interface
 All scrapers implement the UnifiedScraper interface defined in internal/scraper/unified.go. This allows seamless substitution and fallback between sources.
 
 ### Movie vs. TV Show Logic
-The scraper distinguishes between movies and TV shows via internal/scraper/media_manager.go. Some sources (SuperFlix, FlixHQ, SFlix) primarily serve movies/TV shows, while others (AllAnime, AnimeFire) focus on anime. The media manager routes requests to the appropriate scraper.
+Movie/TV metadata enrichment is handled by internal/api/movie/ (SuperFlix, TMDB, OMDB), separate from the anime scraper sources in internal/scraper/. internal/models/media.go defines the MediaType distinction used to route between the two paths.
 
 ### Terminal State Management
 main.go preserves terminal state before entering raw mode (used by TUI libraries like bubbletea and go-fuzzyfinder). On exit or interrupt, the terminal is restored to prevent user shells from being left in a broken state.
@@ -277,10 +278,11 @@ This minimizes latency when the user first searches.
 - **Regression tests**: Named files like *_regression_test.go test for previously fixed bugs
 
 ### Example Regression Tests
-- runspinner_regression_test.go: Tests spinner race conditions
-- source_routing_regression_test.go: Tests correct scraper routing
-- superflix_test.go: Tests SuperFlix API migration and error handling
-- allanime_ctr_regression_test.go: Tests AllAnime provider resolution
+- runspinner_regression_test.go (internal/api): Tests spinner race conditions
+- source_routing_regression_test.go (internal/player): Tests correct scraper routing
+- superflix_enrich_test.go (internal/api/movie): Tests SuperFlix API migration and error handling
+- allanime_ctr_regression_test.go (internal/scraper): Tests AllAnime provider resolution
+- origin_probe_test.go (internal/scraper): Tests the post-timeout Cloudflare-origin-down probe (regression from a 2026-04-28 incident where FlixHQ/SFlix/9Anime showed a misleading "search timed out" message while the actual cause was a dead Cloudflare origin)
 
 ## CI/CD Pipeline
 
@@ -298,7 +300,7 @@ GitHub Actions (.github/workflows/ci.yml):
 ## Important Notes
 
 ### Known Limitations & Workarounds
-- **Temporarily Disabled Sources**: FlixHQ, SFlix, and 9Anime are commented out in the provider registry (v1.8.4). AnimeDrive is also disabled pending Cloudflare bypass implementation.
+- **Active anime sources**: AllAnime, AnimeFire, Goyabu, GogoAnime, AnimesOnlineCC, AnimeHeaven (internal/api/source/definition.go). FlixHQ, SFlix, 9Anime, AnimeDrive, and HiAnime/AniNeko were removed entirely (not just disabled) — they no longer exist in the codebase.
 - **SuperFlix API Migration**: Uses superflixapi.online (not deprecated superflixapi.rest). Filtering by air_date removes placeholder episodes.
 - **Terminal Restoration**: On abnormal exit, terminal may not restore properly if cleanup handlers fail. The application attempts to reset ANSI attributes and restore cursor visibility.
 
