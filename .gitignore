@@ -20,6 +20,9 @@ bin/
 /goanime
 /goanime-test
 build/goanime-local
+*.exe
+*.aar
+*.jar
 
 #Ignore vscode AI rules
 .github/copilot-instructions.md
