@@ -54,3 +54,16 @@ data class SourceResult(
     @SerializedName("id") val id: String,
     @SerializedName("name") val name: String,
 )
+
+data class YTSMovieResult(
+    @SerializedName("id") val id: Int,
+    @SerializedName("title") val title: String,
+    @SerializedName("year") val year: Int,
+    @SerializedName("rating") val rating: Float,
+    @SerializedName("genres") val genres: List<String>?,
+    @SerializedName("summary") val summary: String?,
+    @SerializedName("coverLarge") val coverLarge: String?,
+    @SerializedName("magnetUrl") val magnetUrl: String,
+    @SerializedName("quality") val quality: String,
+    @SerializedName("sizeMb") val sizeMb: Long,
+)

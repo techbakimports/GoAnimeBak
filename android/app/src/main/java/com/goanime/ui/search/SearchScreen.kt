@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +49,7 @@ fun SearchScreen(
     onAnimeSelected: (String) -> Unit,
     onSettings: () -> Unit = {},
     onFavorites: () -> Unit = {},
+    onMovies: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -83,6 +85,16 @@ fun SearchScreen(
                         color = NeonGreen, letterSpacing = (-0.5).sp)
                     Spacer(Modifier.weight(1f))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        IconButton(
+                            onClick = onMovies,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BgCard)
+                        ) {
+                            Icon(Icons.Default.Movie, "Filmes YTS",
+                                tint = TextMuted, modifier = Modifier.size(18.dp))
+                        }
                         IconButton(
                             onClick = { showStatusSheet = true },
                             modifier = Modifier

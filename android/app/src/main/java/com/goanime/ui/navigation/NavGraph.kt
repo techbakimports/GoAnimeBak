@@ -12,12 +12,14 @@ import com.goanime.ui.favorites.FavoritesScreen
 import com.goanime.ui.player.PlayerScreen
 import com.goanime.ui.search.SearchScreen
 import com.goanime.ui.settings.SettingsScreen
+import com.goanime.ui.yts.YTSSearchScreen
 import com.google.gson.Gson
 
 sealed class Screen(val route: String) {
     data object Search    : Screen("search")
     data object Favorites : Screen("favorites")
     data object Settings  : Screen("settings")
+    data object YTSSearch : Screen("yts")
     data object Episodes  : Screen("episodes/{animeJson}") {
         fun createRoute(animeJson: String) = "episodes/$animeJson"
     }
@@ -39,7 +41,17 @@ fun GoAnimeNavHost() {
                     navController.navigate(Screen.Episodes.createRoute(animeJson))
                 },
                 onFavorites = { navController.navigate(Screen.Favorites.route) },
-                onSettings  = { navController.navigate(Screen.Settings.route) }
+                onSettings  = { navController.navigate(Screen.Settings.route) },
+                onMovies    = { navController.navigate(Screen.YTSSearch.route) },
+            )
+        }
+
+        composable(Screen.YTSSearch.route) {
+            YTSSearchScreen(
+                onMovieSelected = { streamJson ->
+                    navController.navigate(Screen.Player.createRoute(streamJson))
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 

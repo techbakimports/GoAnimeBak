@@ -95,6 +95,9 @@ dependencies {
     // Google Play Billing (in-app purchases)
     implementation("com.android.billingclient:billing-ktx:7.1.1")
 
+    // Torrent streaming (YTS movie playback)
+    implementation("com.github.TorrentStream:TorrentStream-Android:2.7.0")
+
     // JSON parsing
     implementation("com.google.code.gson:gson:2.12.1")
 
