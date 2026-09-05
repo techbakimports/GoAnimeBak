@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Wifi
@@ -52,6 +53,7 @@ fun SearchScreen(
     onFavorites: () -> Unit = {},
     onMovies: () -> Unit = {},
     onIdentify: () -> Unit = {},
+    onManga: () -> Unit = {},
     prefillQuery: String? = null,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
@@ -114,6 +116,16 @@ fun SearchScreen(
                                 .background(BgCard)
                         ) {
                             Icon(Icons.Default.PhotoCamera, "Identificar anime por screenshot",
+                                tint = TextMuted, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(
+                            onClick = onManga,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BgCard)
+                        ) {
+                            Icon(Icons.Default.MenuBook, "Mangá",
                                 tint = TextMuted, modifier = Modifier.size(18.dp))
                         }
                         IconButton(

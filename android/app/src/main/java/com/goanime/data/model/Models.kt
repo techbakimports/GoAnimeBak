@@ -68,6 +68,24 @@ data class YTSMovieResult(
     @SerializedName("sizeMb") val sizeMb: Long,
 )
 
+data class MangaResult(
+    @SerializedName("id") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("year") val year: Int = 0,
+    @SerializedName("status") val status: String = "",
+    @SerializedName("description") val description: String = "",
+    @SerializedName("coverUrl") val coverUrl: String = "",
+)
+
+data class ChapterResult(
+    @SerializedName("id") val id: String,
+    @SerializedName("chapter") val chapter: String = "",
+    @SerializedName("volume") val volume: String = "",
+    @SerializedName("title") val title: String = "",
+    @SerializedName("language") val language: String = "",
+    @SerializedName("pages") val pages: Int = 0,
+)
+
 data class TraceMoeResult(
     @SerializedName("anilistId") val anilistId: Int = 0,
     @SerializedName("malId") val malId: Int = 0,
