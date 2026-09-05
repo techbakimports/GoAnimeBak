@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +51,8 @@ fun SearchScreen(
     onSettings: () -> Unit = {},
     onFavorites: () -> Unit = {},
     onMovies: () -> Unit = {},
+    onIdentify: () -> Unit = {},
+    prefillQuery: String? = null,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -59,6 +62,14 @@ fun SearchScreen(
 
     if (showStatusSheet) {
         ServerStatusSheet(onDismiss = { showStatusSheet = false })
+    }
+
+    // Coming back from "Identificar Anime" with a matched title fills and
+    // triggers the search automatically.
+    LaunchedEffect(prefillQuery) {
+        if (!prefillQuery.isNullOrBlank()) {
+            viewModel.onQueryChanged(prefillQuery)
+        }
     }
 
     Scaffold(
@@ -93,6 +104,16 @@ fun SearchScreen(
                                 .background(BgCard)
                         ) {
                             Icon(Icons.Default.Movie, "Filmes YTS",
+                                tint = TextMuted, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(
+                            onClick = onIdentify,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BgCard)
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, "Identificar anime por screenshot",
                                 tint = TextMuted, modifier = Modifier.size(18.dp))
                         }
                         IconButton(

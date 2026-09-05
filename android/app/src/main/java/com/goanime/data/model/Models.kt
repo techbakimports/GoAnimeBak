@@ -67,3 +67,17 @@ data class YTSMovieResult(
     @SerializedName("quality") val quality: String,
     @SerializedName("sizeMb") val sizeMb: Long,
 )
+
+data class TraceMoeResult(
+    @SerializedName("anilistId") val anilistId: Int = 0,
+    @SerializedName("malId") val malId: Int = 0,
+    @SerializedName("titleRomaji") val titleRomaji: String = "",
+    @SerializedName("titleEnglish") val titleEnglish: String = "",
+    @SerializedName("titleNative") val titleNative: String = "",
+    @SerializedName("episode") val episode: String = "",
+    @SerializedName("from") val from: Double = 0.0,
+    @SerializedName("to") val to: Double = 0.0,
+    @SerializedName("similarity") val similarity: Double = 0.0,
+    @SerializedName("imageUrl") val imageUrl: String = "",
+    @SerializedName("videoUrl") val videoUrl: String = "",
+)
