@@ -131,6 +131,23 @@ func ShowBeautifulHelp() {
 	addOption(&helpContent, "--upscale-workers", "Number of parallel workers (default: CPU cores).")
 	helpContent.WriteString("\n")
 
+	// Trace.moe Options section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Trace.moe Options:"))
+	helpContent.WriteString("\n")
+	addOption(&helpContent, "--identify", "Identify the anime, episode, and timestamp of a screenshot using trace.moe.")
+	helpContent.WriteString("\n")
+
+	// Manga Options section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Manga Options (MangaDex):"))
+	helpContent.WriteString("\n")
+	addOption(&helpContent, "--manga", "Search MangaDex and download a chapter (interactive title/chapter selection).")
+	addOption(&helpContent, "--manga-format", "Manga export format: cbz or pdf (default: cbz).")
+	helpContent.WriteString("\n")
+
 	// Features section
 	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
 	helpContent.WriteString("\n")
@@ -150,6 +167,8 @@ func ShowBeautifulHelp() {
 	addFeature(&helpContent, "Audio Track Selection", "Select preferred audio language for movies/TV during playback (FlixHQ only).")
 	addFeature(&helpContent, "AllAnime Smart Range", "Exclusive: For AllAnime, download a range with mirror priority and optional intro/outro trimming.")
 	addFeature(&helpContent, "Anime4K Upscaling", "Enhance video and image quality using the Anime4K algorithm.")
+	addFeature(&helpContent, "Scene Identification", "Identify the anime, episode, and timestamp of a screenshot via trace.moe.")
+	addFeature(&helpContent, "Manga Downloads", "Search MangaDex and download a chapter as CBZ or PDF.")
 	helpContent.WriteString("\n")
 
 	// Examples section
@@ -192,6 +211,23 @@ func ShowBeautifulHelp() {
 	addExample(&helpContent, "goanime --upscale --upscale-scale 4 video.mp4", "Upscale to 4x resolution")
 	addExample(&helpContent, "goanime --upscale --upscale-output out.mp4 video.mp4", "Specify output path")
 	addExample(&helpContent, "goanime --upscale --upscale-gpu video.mp4", "Use GPU hardware encoding")
+	helpContent.WriteString("\n")
+
+	// Trace.moe Examples section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Trace.moe Examples:"))
+	helpContent.WriteString("\n")
+	addExample(&helpContent, "goanime --identify screenshot.png", "Identify the anime/episode/timestamp of a screenshot")
+	helpContent.WriteString("\n")
+
+	// Manga Examples section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Manga Examples (MangaDex):"))
+	helpContent.WriteString("\n")
+	addExample(&helpContent, "goanime --manga \"one piece\"", "Search and download a One Piece chapter as CBZ")
+	addExample(&helpContent, "goanime --manga --manga-format pdf \"jujutsu kaisen\"", "Download a chapter as PDF instead")
 	helpContent.WriteString("\n")
 
 	// Footer
