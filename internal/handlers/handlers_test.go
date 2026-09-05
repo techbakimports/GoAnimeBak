@@ -120,3 +120,14 @@ func TestHandleUpscaleRequest_NilRequest(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "upscale request is nil")
 }
+
+func TestHandleTraceMoeRequest_NilRequest(t *testing.T) {
+	original := util.GlobalTraceMoeRequest
+	defer func() { util.GlobalTraceMoeRequest = original }()
+
+	util.GlobalTraceMoeRequest = nil
+
+	err := HandleTraceMoeRequest()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "identify request is nil")
+}

@@ -16,6 +16,12 @@ import (
 )
 
 func main() {
+	// Initialize the logger before anything else runs so that errors raised
+	// during flag parsing (e.g. an invalid --upscale/--identify input path)
+	// or an early panic are actually printed instead of being silently
+	// dropped by util.Errorf/Infof no-op'ing on a nil Logger.
+	util.InitLogger()
+
 	// Save terminal state so we can restore it on exit.
 	// Libraries like promptui (readline) and go-fuzzyfinder (tcell) put the
 	// terminal into raw mode; if the process is interrupted or exits abnormally
@@ -92,6 +98,13 @@ func main() {
 		if err == util.ErrUpscaleRequested {
 			if upscaleErr := handlers.HandleUpscaleRequest(); upscaleErr != nil {
 				util.Errorf("%v", util.ErrorHandler(upscaleErr))
+			}
+			return
+		}
+		// Check if error is identify (trace.moe) request
+		if err == util.ErrTraceMoeRequested {
+			if identifyErr := handlers.HandleTraceMoeRequest(); identifyErr != nil {
+				util.Errorf("%v", util.ErrorHandler(identifyErr))
 			}
 			return
 		}

@@ -321,6 +321,7 @@ var (
 	ErrDownloadRequested      = errors.New("download requested")
 	ErrUpscaleRequested       = errors.New("upscale requested")
 	ErrMovieDownloadRequested = errors.New("movie download requested")
+	ErrTraceMoeRequested      = errors.New("identify requested")
 )
 
 // DownloadRequest holds download command parameters
@@ -359,11 +360,19 @@ type UpscaleRequest struct {
 	Workers          int     // Number of parallel workers
 }
 
+// TraceMoeRequest holds --identify command parameters
+type TraceMoeRequest struct {
+	ImagePath string // Local screenshot/frame to identify via trace.moe
+}
+
 // Global variable to store download request
 var GlobalDownloadRequest *DownloadRequest
 
 // Global variable to store upscale request
 var GlobalUpscaleRequest *UpscaleRequest
+
+// Global variable to store identify (trace.moe) request
+var GlobalTraceMoeRequest *TraceMoeRequest
 
 // FlagParser parses the -flags and returns the anime name
 func FlagParser() (string, error) {
@@ -405,6 +414,9 @@ func FlagParser() (string, error) {
 	upscaleGPUFlag := fs.Bool("upscale-gpu", false, "use GPU encoding for video output")
 	upscaleBitrateFlag := fs.String("upscale-bitrate", "8M", "video bitrate for output (default: 8M)")
 	upscaleWorkersFlag := fs.Int("upscale-workers", 0, "number of parallel workers (default: CPU cores)")
+
+	// Trace.moe flags
+	identifyFlag := fs.Bool("identify", false, "identify the anime/episode/timestamp of a screenshot using trace.moe")
 
 	// Set custom usage for our FlagSet
 	fs.Usage = func() {
@@ -481,6 +493,11 @@ func FlagParser() (string, error) {
 			*upscaleBitrateFlag,
 			*upscaleWorkersFlag,
 		)
+	}
+
+	// Handle identify (trace.moe) mode
+	if *identifyFlag {
+		return handleTraceMoeMode(fs.Args())
 	}
 
 	if *debug {
@@ -791,6 +808,25 @@ func handleUpscaleMode(fs *flag.FlagSet, outputPath string, scaleFactor, passes 
 	}
 
 	return inputPath, ErrUpscaleRequested
+}
+
+// handleTraceMoeMode processes --identify arguments
+func handleTraceMoeMode(args []string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("identify mode requires an image file path\nUsage: goanime --identify <screenshot.png>")
+	}
+
+	imagePath := args[0]
+
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("image file not found: %s", imagePath)
+	}
+
+	GlobalTraceMoeRequest = &TraceMoeRequest{
+		ImagePath: imagePath,
+	}
+
+	return imagePath, ErrTraceMoeRequested
 }
 
 // handleMovieDownloadMode processes movie/TV download arguments for FlixHQ/SFlix
