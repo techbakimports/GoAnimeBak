@@ -131,3 +131,14 @@ func TestHandleTraceMoeRequest_NilRequest(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "identify request is nil")
 }
+
+func TestHandleMangaRequest_NilRequest(t *testing.T) {
+	original := util.GlobalMangaRequest
+	defer func() { util.GlobalMangaRequest = original }()
+
+	util.GlobalMangaRequest = nil
+
+	err := HandleMangaRequest()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "manga request is nil")
+}

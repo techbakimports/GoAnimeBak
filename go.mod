@@ -20,6 +20,7 @@ require (
 	github.com/disintegration/gift v1.2.1
 	github.com/enetx/surf v1.0.199
 	github.com/lrstanley/go-ytdlp v1.3.5
+	github.com/signintech/gopdf v0.38.0
 	github.com/tr1xem/go-discordrpc v1.0.0
 )
 
@@ -44,6 +45,7 @@ require (
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
+	github.com/phpdave11/gofpdi v1.0.14-0.20211212211723-1f10f9844311 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/refraction-networking/utls v1.8.3-0.20260301010127-aa6edf4b11af // indirect

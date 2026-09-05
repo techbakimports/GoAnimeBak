@@ -322,6 +322,7 @@ var (
 	ErrUpscaleRequested       = errors.New("upscale requested")
 	ErrMovieDownloadRequested = errors.New("movie download requested")
 	ErrTraceMoeRequested      = errors.New("identify requested")
+	ErrMangaRequested         = errors.New("manga requested")
 )
 
 // DownloadRequest holds download command parameters
@@ -365,6 +366,12 @@ type TraceMoeRequest struct {
 	ImagePath string // Local screenshot/frame to identify via trace.moe
 }
 
+// MangaRequest holds --manga command parameters
+type MangaRequest struct {
+	Query  string // Manga title to search for on MangaDex
+	Format string // Export format: "cbz" (default) or "pdf"
+}
+
 // Global variable to store download request
 var GlobalDownloadRequest *DownloadRequest
 
@@ -373,6 +380,9 @@ var GlobalUpscaleRequest *UpscaleRequest
 
 // Global variable to store identify (trace.moe) request
 var GlobalTraceMoeRequest *TraceMoeRequest
+
+// Global variable to store manga request
+var GlobalMangaRequest *MangaRequest
 
 // FlagParser parses the -flags and returns the anime name
 func FlagParser() (string, error) {
@@ -417,6 +427,10 @@ func FlagParser() (string, error) {
 
 	// Trace.moe flags
 	identifyFlag := fs.Bool("identify", false, "identify the anime/episode/timestamp of a screenshot using trace.moe")
+
+	// Manga (MangaDex) flags
+	mangaFlag := fs.Bool("manga", false, "search MangaDex and download a chapter as CBZ/PDF")
+	mangaFormatFlag := fs.String("manga-format", "cbz", "manga export format: cbz or pdf")
 
 	// Set custom usage for our FlagSet
 	fs.Usage = func() {
@@ -498,6 +512,11 @@ func FlagParser() (string, error) {
 	// Handle identify (trace.moe) mode
 	if *identifyFlag {
 		return handleTraceMoeMode(fs.Args())
+	}
+
+	// Handle manga (MangaDex) mode
+	if *mangaFlag {
+		return handleMangaMode(fs.Args(), *mangaFormatFlag)
 	}
 
 	if *debug {
@@ -829,6 +848,27 @@ func handleTraceMoeMode(args []string) (string, error) {
 	return imagePath, ErrTraceMoeRequested
 }
 
+// handleMangaMode processes --manga arguments
+func handleMangaMode(args []string, format string) (string, error) {
+	if len(args) == 0 {
+		return "", fmt.Errorf("manga mode requires a search term\nUsage: goanime --manga \"Manga Title\" [--manga-format cbz|pdf]")
+	}
+
+	query := strings.Join(args, " ")
+
+	format = strings.ToLower(format)
+	if format != "cbz" && format != "pdf" {
+		format = "cbz"
+	}
+
+	GlobalMangaRequest = &MangaRequest{
+		Query:  query,
+		Format: format,
+	}
+
+	return query, ErrMangaRequested
+}
+
 // handleMovieDownloadMode processes movie/TV download arguments for FlixHQ/SFlix
 func handleMovieDownloadMode(args []string, isRange bool, isAll bool, quality, subsLanguage, mediaType string) (string, error) {
 	if len(args) == 0 {
@@ -1146,6 +1186,17 @@ func DefaultMovieDownloadDir() string {
 	}
 	userHome, _ := os.UserHomeDir()
 	return filepath.Join(userHome, ".local", "goanime", "downloads", "movies")
+}
+
+// DefaultMangaDownloadDir returns the base download directory for manga chapters.
+// If the user specified a custom directory via -o flag, that is returned.
+// Otherwise returns the default ~/.local/goanime/downloads/manga/ path.
+func DefaultMangaDownloadDir() string {
+	if GlobalOutputDir != "" {
+		return GlobalOutputDir
+	}
+	userHome, _ := os.UserHomeDir()
+	return filepath.Join(userHome, ".local", "goanime", "downloads", "manga")
 }
 
 // FormatPlexMoviePath builds a Plex/Jellyfin-compatible file path for a movie.

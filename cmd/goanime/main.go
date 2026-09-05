@@ -108,6 +108,13 @@ func main() {
 			}
 			return
 		}
+		// Check if error is manga (MangaDex) request
+		if err == util.ErrMangaRequested {
+			if mangaErr := handlers.HandleMangaRequest(); mangaErr != nil {
+				util.Errorf("%v", util.ErrorHandler(mangaErr))
+			}
+			return
+		}
 		// For help and version requests, just exit silently
 		if err == util.ErrHelpRequested {
 			return

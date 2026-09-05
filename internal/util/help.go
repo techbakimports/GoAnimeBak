@@ -139,6 +139,15 @@ func ShowBeautifulHelp() {
 	addOption(&helpContent, "--identify", "Identify the anime, episode, and timestamp of a screenshot using trace.moe.")
 	helpContent.WriteString("\n")
 
+	// Manga Options section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Manga Options (MangaDex):"))
+	helpContent.WriteString("\n")
+	addOption(&helpContent, "--manga", "Search MangaDex and download a chapter (interactive title/chapter selection).")
+	addOption(&helpContent, "--manga-format", "Manga export format: cbz or pdf (default: cbz).")
+	helpContent.WriteString("\n")
+
 	// Features section
 	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
 	helpContent.WriteString("\n")
@@ -159,6 +168,7 @@ func ShowBeautifulHelp() {
 	addFeature(&helpContent, "AllAnime Smart Range", "Exclusive: For AllAnime, download a range with mirror priority and optional intro/outro trimming.")
 	addFeature(&helpContent, "Anime4K Upscaling", "Enhance video and image quality using the Anime4K algorithm.")
 	addFeature(&helpContent, "Scene Identification", "Identify the anime, episode, and timestamp of a screenshot via trace.moe.")
+	addFeature(&helpContent, "Manga Downloads", "Search MangaDex and download a chapter as CBZ or PDF.")
 	helpContent.WriteString("\n")
 
 	// Examples section
@@ -209,6 +219,15 @@ func ShowBeautifulHelp() {
 	helpContent.WriteString(sectionTitleStyle.Render("Trace.moe Examples:"))
 	helpContent.WriteString("\n")
 	addExample(&helpContent, "goanime --identify screenshot.png", "Identify the anime/episode/timestamp of a screenshot")
+	helpContent.WriteString("\n")
+
+	// Manga Examples section
+	helpContent.WriteString(separatorStyle.Render(strings.Repeat("─", 80)))
+	helpContent.WriteString("\n")
+	helpContent.WriteString(sectionTitleStyle.Render("Manga Examples (MangaDex):"))
+	helpContent.WriteString("\n")
+	addExample(&helpContent, "goanime --manga \"one piece\"", "Search and download a One Piece chapter as CBZ")
+	addExample(&helpContent, "goanime --manga --manga-format pdf \"jujutsu kaisen\"", "Download a chapter as PDF instead")
 	helpContent.WriteString("\n")
 
 	// Footer
